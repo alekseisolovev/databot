@@ -8,3 +8,4 @@ langgraph==0.3.30
 langgraph-checkpoint-sqlite==2.0.6
 pandas==2.2.3
 pygraphviz==1.14
+streamlit==1.45.0
