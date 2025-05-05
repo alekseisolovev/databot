@@ -1,14 +1,23 @@
 services:
   app:
     build: .
-    command: jupyter lab --ip=0.0.0.0 --port=8888
+    command: streamlit run app/main.py
     ports:
-      - "8888:8888" 
-    volumes:
-      - .:/app 
+      - "8501:8501"
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - TAVILY_API_KEY=${TAVILY_API_KEY}
     env_file:
       - .env
 
+  dev:
+    build: .
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --NotebookApp.token=''
+    ports:
+      - "8888:8888"
+    profiles: [ dev ]
+    volumes:
+      - .:/app
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    env_file:
+      - .env
