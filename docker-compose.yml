@@ -6,6 +6,8 @@ services:
     command: streamlit run app/main.py
     ports:
       - "8501:8501"
+    volumes:
+      - .:/app
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
     env_file:
