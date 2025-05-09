@@ -14,6 +14,7 @@ RUN groupadd --system --gid ${GROUP_ID} ${APP_GROUP} \
     && useradd --system --uid ${USER_ID} --gid ${APP_GROUP} --no-log-init --home ${HOME} --create-home --shell /bin/bash ${APP_USER}
 
 WORKDIR /app
+ENV PYTHONPATH="/app"
 
 RUN pip install --no-cache-dir --upgrade pip
 
