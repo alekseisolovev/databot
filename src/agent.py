@@ -40,3 +40,54 @@ DataFrame Schema:
 {dataframe_schema}
 -----------------
 """
+
+
+def create_agent_graph(df: pd.DataFrame):
+    """Creates and compiles the LangGraph agent."""
+
+    @tool
+    def run_dataframe_query(query: str) -> str:
+        """
+        Executes a Python query or operation on the pandas DataFrame.
+        Use this to get specific data, summaries, or perform calculations.
+        The query should be a string that can be evaluated.
+        """
+        try:
+            result = eval(query, {"df": df, "pd": pd})
+            return str(result)
+        except Exception as e:
+            return f"Error executing query: '{query}'. Error: {str(e)}"
+
+    tools = [run_dataframe_query]
+    tool_node = ToolNode(tools)
+
+    model = ChatGoogleGenerativeAI(model="gemini-2.0-flash").bind_tools(tools)
+
+    def agent_node(state: MessagesState):
+        response = model.invoke(state["messages"])
+        return {"messages": [response]}
+
+    def should_continue(state: MessagesState):
+        last_message = state["messages"][-1]
+        if isinstance(last_message, AIMessage) and last_message.tool_calls:
+            return "tools"
+        return END
+
+    builder = StateGraph(MessagesState)
+    builder.add_node("agent", agent_node)
+    builder.add_node("tools", tool_node)
+
+    builder.add_edge(START, "agent")
+    builder.add_conditional_edges(
+        "agent",
+        should_continue,
+        {
+            "tools": "tools",
+            END: END,
+        },
+    )
+    builder.add_edge("tools", "agent")
+
+    graph = builder.compile()
+    return graph
+    
