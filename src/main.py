@@ -2,6 +2,8 @@ import pandas as pd
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+from agent import create_agent_graph, get_dataframe_schema, get_system_prompt
+
 st.set_page_config(layout="wide")
 st.markdown(
     """
@@ -18,7 +20,7 @@ if "dataframe" not in st.session_state:
 
 with st.sidebar:
     st.header("Upload your CSV file")
-    uploaded_file = st.file_uploader("", type=["csv"])
+    uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
 
     def reset_session_state(df):
         st.session_state.dataframe = df
@@ -52,4 +54,3 @@ if user_query := st.chat_input("Ask something about your data."):
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
-        
