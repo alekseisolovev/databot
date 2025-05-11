@@ -13,34 +13,47 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "dataframe" not in st.session_state:
-    st.session_state.dataframe = None
+st.session_state.setdefault("messages", [])
+st.session_state.setdefault("dataframe", None)
+st.session_state.setdefault("agent", None)
+
+
+def initialize_agent(df: pd.DataFrame):
+    st.session_state.dataframe = df
+    st.session_state.messages.clear()
+    if df is not None:
+        try:
+            st.session_state.agent = create_agent_graph(df)
+            schema = get_dataframe_schema(df)
+            prompt = get_system_prompt(schema)
+            st.session_state.messages.append(SystemMessage(content=prompt))
+        except Exception as e:
+            st.error(f"Agent initialization failed: {e}")
+            st.session_state.agent = None
+            st.session_state.dataframe = None
+    else:
+        st.session_state.agent = None
+
 
 with st.sidebar:
     st.header("Upload your CSV file")
     uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
-
-    def reset_session_state(df):
-        st.session_state.dataframe = df
-
     if uploaded_file:
         try:
             df = pd.read_csv(uploaded_file)
-            if st.session_state.get(
-                "dataframe"
-            ) is None or not st.session_state.dataframe.equals(df):
-                reset_session_state(df)
-
+            initialize_agent(df)
         except Exception as e:
             st.error(f"Error reading CSV: {e}")
-            reset_session_state(None)
+            initialize_agent(None)
 
-        if st.session_state.dataframe is not None:
-            st.header("Data Preview")
-            st.dataframe(st.session_state.dataframe.head(), height=200)
-            st.success("CSV successfully uploaded. You can now chat with the agent.")
+    if st.session_state.dataframe is not None:
+        st.header("Data Preview")
+        st.dataframe(st.session_state.dataframe.head(), height=200)
+        st.success("CSV successfully uploaded.")
+        if st.session_state.agent:
+            st.info("Agent initialized. You can now chat about your data.")
+        else:
+            st.warning("Agent initialization failed.")
 
 for message in st.session_state.messages:
     if message.type == "human":
@@ -54,3 +67,4 @@ if user_query := st.chat_input("Ask something about your data."):
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
+        
