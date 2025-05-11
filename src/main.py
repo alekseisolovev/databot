@@ -47,11 +47,12 @@ with st.sidebar:
             initialize_agent(None)
 
     if st.session_state.dataframe is not None:
+        st.success("CSV successfully uploaded.")
         st.header("Data Preview")
         st.dataframe(st.session_state.dataframe.head(), height=200)
-        st.success("CSV successfully uploaded.")
         if st.session_state.agent:
-            st.info("Agent initialized. You can now chat about your data.")
+            st.success("Agent initialized.")
+            st.info("You can now chat about your data.")
         else:
             st.warning("Agent initialization failed.")
 
@@ -61,10 +62,47 @@ for message in st.session_state.messages:
     elif message.type == "agent":
         st.chat_message("assistant").write(message.content)
 
-if user_query := st.chat_input("Ask something about your data."):
-    if st.session_state.dataframe is None:
-        st.warning("Please upload a CSV file first.")
+if user_query := st.chat_input("Ask something about your data..."):
+    if st.session_state.dataframe is None or st.session_state.agent is None:
+        st.warning(
+            "Please upload a CSV file first and ensure the agent is initialized."
+        )
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
-        
+
+        messages_for_agent = list(st.session_state.messages)
+
+        with st.spinner("Thinking..."):
+            try:
+                final_messages = None
+                for event in st.session_state.agent.stream(
+                    {"messages": messages_for_agent},
+                    stream_mode="values",
+                ):
+                    final_messages = event["messages"]
+
+                if final_messages:
+                    for message in final_messages:
+                        if (
+                            isinstance(message, AIMessage)
+                            and message not in st.session_state.messages
+                        ):
+                            if message.content:
+                                st.session_state.messages.append(message)
+                                st.chat_message("assistant").write(message.content)
+                                break
+                else:
+                    error_message = AIMessage(
+                        content="Agent did not return a response."
+                    )
+                    st.session_state.messages.append(error_message)
+                    st.chat_message("assistant").write(error_message.content)
+
+            except Exception as e:
+                error_message = f"Error processing your query: {e}"
+                st.error(error_message)
+                error_message = AIMessage(content=error_message)
+                st.session_state.messages.append(error_message)
+                st.chat_message("assistant").write(error_message.content)
+                
