@@ -23,8 +23,6 @@ FROM base AS app
 COPY --chown=${APP_USER}:${APP_GROUP} requirements.app.txt .
 RUN pip install --no-cache-dir -r requirements.app.txt
 
-COPY --chown=${APP_USER}:${APP_GROUP} . .
-
 USER ${APP_USER}
 
 FROM base AS dev
