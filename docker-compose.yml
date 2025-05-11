@@ -3,7 +3,7 @@ services:
     build:
       context: .
       target: app
-    command: streamlit run app/main.py
+    command: streamlit run src/main.py
     ports:
       - "8501:8501"
     volumes:
