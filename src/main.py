@@ -57,9 +57,9 @@ with st.sidebar:
             st.warning("Agent initialization failed.")
 
 for message in st.session_state.messages:
-    if message.type == "human":
+    if isinstance(message, HumanMessage):
         st.chat_message("user").write(message.content)
-    elif message.type == "agent":
+    elif isinstance(message, AIMessage):
         st.chat_message("assistant").write(message.content)
 
 if user_query := st.chat_input("Ask something about your data..."):
