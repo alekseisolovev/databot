@@ -1,6 +1,6 @@
 import pandas as pd
 import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agent import create_agent_graph, get_dataframe_schema, get_system_prompt
 
@@ -16,57 +16,71 @@ st.markdown(
 st.session_state.setdefault("messages", [])
 st.session_state.setdefault("dataframe", None)
 st.session_state.setdefault("agent", None)
+st.session_state.setdefault("current_file_name", None)
 
 
-def initialize_agent(df: pd.DataFrame):
-    st.session_state.dataframe = df
+def initialize_agent(df: pd.DataFrame, file_name: str):
     st.session_state.messages.clear()
-    if df is not None:
-        try:
-            st.session_state.agent = create_agent_graph(df)
-            schema = get_dataframe_schema(df)
-            prompt = get_system_prompt(schema)
-            st.session_state.messages.append(SystemMessage(content=prompt))
-        except Exception as e:
-            st.error(f"Agent initialization failed: {e}")
-            st.session_state.agent = None
-            st.session_state.dataframe = None
-    else:
+    st.session_state.dataframe = df
+    try:
+        st.session_state.agent = create_agent_graph(df)
+        schema = get_dataframe_schema(df)
+        prompt = get_system_prompt(schema)
+        st.session_state.messages.append(SystemMessage(content=prompt))
+        st.session_state.current_file_name = file_name
+    except Exception as e:
+        st.error(f"Agent initialization failed: {e}")
         st.session_state.agent = None
+        st.session_state.dataframe = None
+        st.session_state.current_file_name = None
 
 
 with st.sidebar:
     st.header("Upload your CSV file")
     uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
-    if uploaded_file:
-        try:
-            df = pd.read_csv(uploaded_file)
-            initialize_agent(df)
-        except Exception as e:
-            st.error(f"Error reading CSV: {e}")
-            initialize_agent(None)
 
-    if st.session_state.dataframe is not None:
-        st.success("CSV successfully uploaded.")
-        st.header("Data Preview")
-        st.dataframe(st.session_state.dataframe.head(), height=200)
-        if st.session_state.agent:
-            st.success("Agent initialized.")
-            st.info("You can now chat about your data.")
-        else:
-            st.warning("Agent initialization failed.")
+    if uploaded_file is not None:
+        if (
+            st.session_state.current_file_name != uploaded_file.name
+            or st.session_state.agent is None
+        ):
+            try:
+                df = pd.read_csv(uploaded_file)
+                initialize_agent(df, uploaded_file.name)
+            except Exception as e:
+                st.error(f"Error reading or processing CSV: {e}")
+                st.session_state.dataframe = None
+                st.session_state.agent = None
+                st.session_state.current_file_name = None
+                st.session_state.messages.clear()
+
+        if st.session_state.dataframe is not None:
+            st.success("CSV successfully uploaded.")
+            st.header("Data Preview")
+            st.dataframe(st.session_state.dataframe.head(), height=200)
+            if st.session_state.agent:
+                st.success("Agent is ready.")
+                st.info("You can now chat about your data.")
+            else:
+                st.warning("Agent initialization failed.")
+    else:
+        if st.session_state.current_file_name is not None:
+            st.session_state.messages.clear()
+            st.session_state.dataframe = None
+            st.session_state.agent = None
+            st.session_state.current_file_name = None
+            st.info("File removed. Agent and chat history cleared.")
+
 
 for message in st.session_state.messages:
     if isinstance(message, HumanMessage):
         st.chat_message("user").write(message.content)
-    elif isinstance(message, AIMessage):
+    elif isinstance(message, AIMessage) and message.content:
         st.chat_message("assistant").write(message.content)
 
 if user_query := st.chat_input("Ask something about your data..."):
     if st.session_state.dataframe is None or st.session_state.agent is None:
-        st.warning(
-            "Please upload a CSV file first and ensure the agent is initialized."
-        )
+        st.warning("Please upload and initialize a CSV file first.")
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
@@ -75,34 +89,19 @@ if user_query := st.chat_input("Ask something about your data..."):
 
         with st.spinner("Thinking..."):
             try:
-                final_messages = None
+                final_ai_message = None
                 for event in st.session_state.agent.stream(
                     {"messages": messages_for_agent},
                     stream_mode="values",
                 ):
-                    final_messages = event["messages"]
+                    if event["messages"]:
+                        final_ai_message = event["messages"][-1]
 
-                if final_messages:
-                    for message in final_messages:
-                        if (
-                            isinstance(message, AIMessage)
-                            and message not in st.session_state.messages
-                        ):
-                            if message.content:
-                                st.session_state.messages.append(message)
-                                st.chat_message("assistant").write(message.content)
-                                break
-                else:
-                    error_message = AIMessage(
-                        content="Agent did not return a response."
-                    )
-                    st.session_state.messages.append(error_message)
-                    st.chat_message("assistant").write(error_message.content)
+                if isinstance(final_ai_message, AIMessage) and final_ai_message.content:
+                    st.session_state.messages.append(final_ai_message)
+                    st.chat_message("assistant").write(final_ai_message.content)
+                elif final_ai_message is None:
+                    st.warning("The agent did not return a response.")
 
             except Exception as e:
-                error_message = f"Error processing your query: {e}"
-                st.error(error_message)
-                error_message = AIMessage(content=error_message)
-                st.session_state.messages.append(error_message)
-                st.chat_message("assistant").write(error_message.content)
-                
+                st.error(f"Error processing your query: {e}")
