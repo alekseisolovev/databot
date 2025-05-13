@@ -21,7 +21,6 @@ st.session_state.setdefault("current_file_name", None)
 
 def initialize_agent(df: pd.DataFrame, file_name: str):
     st.session_state.messages.clear()
-    st.session_state.dataframe = df
     try:
         st.session_state.agent = create_agent_graph(df)
         schema = get_dataframe_schema(df)
@@ -46,6 +45,7 @@ with st.sidebar:
         ):
             try:
                 df = pd.read_csv(uploaded_file)
+                st.session_state.dataframe = df 
                 initialize_agent(df, uploaded_file.name)
             except Exception as e:
                 st.error(f"Error reading or processing CSV: {e}")
@@ -100,4 +100,3 @@ if user_query := st.chat_input("Ask something about your data..."):
 
             except Exception as e:
                 st.error(f"Error processing your query: {e}")
-                
