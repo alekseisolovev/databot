@@ -85,21 +85,16 @@ if user_query := st.chat_input("Ask something about your data..."):
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
 
-        messages_for_agent = list(st.session_state.messages)
-
         with st.spinner("Thinking..."):
             try:
-                final_ai_message = None
-                for event in st.session_state.agent.stream(
-                    {"messages": messages_for_agent},
-                    stream_mode="values",
-                ):
-                    if event["messages"]:
-                        final_ai_message = event["messages"][-1]
+                response = st.session_state.agent.invoke(
+                    {"messages": st.session_state.messages}
+                )
+                ai_message = response["messages"][-1] if response["messages"] else None
 
-                if isinstance(final_ai_message, AIMessage) and final_ai_message.content:
-                    st.session_state.messages.append(final_ai_message)
-                    st.chat_message("assistant").write(final_ai_message.content)
+                if isinstance(ai_message, AIMessage) and ai_message.content:
+                    st.session_state.messages.append(ai_message)
+                    st.chat_message("assistant").write(ai_message.content)
                 elif final_ai_message is None:
                     st.warning("The agent did not return a response.")
 
