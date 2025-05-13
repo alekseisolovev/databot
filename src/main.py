@@ -95,8 +95,9 @@ if user_query := st.chat_input("Ask something about your data..."):
                 if isinstance(ai_message, AIMessage) and ai_message.content:
                     st.session_state.messages.append(ai_message)
                     st.chat_message("assistant").write(ai_message.content)
-                elif final_ai_message is None:
+                else:
                     st.warning("The agent did not return a response.")
 
             except Exception as e:
                 st.error(f"Error processing your query: {e}")
+                
