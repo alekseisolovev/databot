@@ -1,11 +1,17 @@
 import io
+import logging
 
 import pandas as pd
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
 
 
 def get_dataframe_schema(df: pd.DataFrame) -> str:
@@ -53,9 +59,15 @@ def create_agent_graph(df: pd.DataFrame):
         The query should be a string that can be evaluated.
         """
         try:
-            result = eval(query, {"df": df, "pd": pd})
+            result = eval(query, {"df": df, "pd": pd}, {})
+            logger.info(
+                f"Tool Message: Query '{query}' executed. Result: {str(result)}"
+            )
             return str(result)
         except Exception as e:
+            logger.error(
+                f"Tool Message: Error executing query: '{query}'. Error: {str(e)}"
+            )
             return f"Error executing query: '{query}'. Error: {str(e)}"
 
     tools = [run_dataframe_query]
@@ -64,14 +76,28 @@ def create_agent_graph(df: pd.DataFrame):
     model = ChatGoogleGenerativeAI(model="gemini-2.0-flash").bind_tools(tools)
 
     def agent_node(state: MessagesState):
+        logger.debug(f"AI Message: Processing messages: {state['messages']}")
         response = model.invoke(state["messages"])
+        logger.debug(f"AI Message: Received response from model: {response}")
         return {"messages": [response]}
 
     def should_continue(state: MessagesState):
         last_message = state["messages"][-1]
-        if isinstance(last_message, AIMessage) and last_message.tool_calls:
+        if not isinstance(last_message, AIMessage):
+            logger.error(
+                f"Expected AIMessage but got: '{last_message.content}'. Ending graph run."
+            )
+            return END
+        if last_message.tool_calls:
+            tool_name = last_message.tool_calls[0]["name"]
+            tool_args = last_message.tool_calls[0]["args"]
+            logger.info(
+                f"AI Message: Calling tool '{tool_name}' with args: {tool_args}"
+            )
             return "tools"
-        return END
+        else:
+            logger.info(f"AI Message: Sending response: {last_message.content}")
+            return END
 
     builder = StateGraph(MessagesState)
     builder.add_node("agent", agent_node)
@@ -89,5 +115,6 @@ def create_agent_graph(df: pd.DataFrame):
     builder.add_edge("tools", "agent")
 
     graph = builder.compile()
+    logger.info("Agent graph compiled successfully.")
     return graph
     
