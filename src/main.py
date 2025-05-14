@@ -1,8 +1,12 @@
+import logging
+
 import pandas as pd
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from agent import create_agent_graph, get_dataframe_schema, get_system_prompt
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(layout="wide")
 st.markdown(
@@ -20,6 +24,7 @@ st.session_state.setdefault("current_file_name", None)
 
 
 def initialize_agent(df: pd.DataFrame, file_name: str):
+    logger.info(f"Attempting to initialize agent for {file_name}")
     st.session_state.messages.clear()
     try:
         st.session_state.agent = create_agent_graph(df)
@@ -27,7 +32,9 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
         prompt = get_system_prompt(schema)
         st.session_state.messages.append(SystemMessage(content=prompt))
         st.session_state.current_file_name = file_name
+        logger.info(f"Agent initialized successfully for {file_name}")
     except Exception as e:
+        logger.error(f"Agent initialization failed for {file_name}: {e}", exc_info=True)
         st.error(f"Agent initialization failed: {e}")
         st.session_state.agent = None
         st.session_state.dataframe = None
@@ -43,11 +50,18 @@ with st.sidebar:
             st.session_state.current_file_name != uploaded_file.name
             or st.session_state.agent is None
         ):
+            logger.info(f"File uploaded: {uploaded_file.name}")
             try:
                 df = pd.read_csv(uploaded_file)
-                st.session_state.dataframe = df 
+                st.session_state.dataframe = df
+                logger.info(
+                    f"Successfully read CSV: {uploaded_file.name}. Shape: {df.shape}"
+                )
                 initialize_agent(df, uploaded_file.name)
             except Exception as e:
+                logger.error(
+                    f"Error reading CSV {uploaded_file.name}: {e}", exc_info=True
+                )
                 st.error(f"Error reading or processing CSV: {e}")
                 st.session_state.dataframe = None
                 st.session_state.agent = None
@@ -62,9 +76,13 @@ with st.sidebar:
                 st.success("Agent is ready.")
                 st.info("You can now chat about your data.")
             else:
+                logger.error("Agent initialization failed.")
                 st.warning("Agent initialization failed.")
     else:
         if st.session_state.current_file_name is not None:
+            logger.info(
+                f"File '{st.session_state.current_file_name}' removed due to user action or a new upload."
+            )
             st.session_state.messages.clear()
             st.session_state.dataframe = None
             st.session_state.agent = None
@@ -79,7 +97,9 @@ for message in st.session_state.messages:
         st.chat_message("assistant").write(message.content)
 
 if user_query := st.chat_input("Ask something about your data..."):
+    logger.info(f"User query: '{user_query}'")
     if st.session_state.dataframe is None or st.session_state.agent is None:
+        logger.warning("User attempted query without data or agent initialized.")
         st.warning("Please upload and initialize a CSV file first.")
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
@@ -93,10 +113,18 @@ if user_query := st.chat_input("Ask something about your data..."):
                 ai_message = response["messages"][-1] if response["messages"] else None
 
                 if isinstance(ai_message, AIMessage) and ai_message.content:
+                    logger.info(f"Agent response: {ai_message.content}")
                     st.session_state.messages.append(ai_message)
                     st.chat_message("assistant").write(ai_message.content)
                 else:
+                    logger.warning(
+                        f"The agent did not return a response. Last message: {ai_message}"
+                    )
                     st.warning("The agent did not return a response.")
 
             except Exception as e:
+                logger.error(
+                    f"Error processing user query '{user_query}': {e}", exc_info=True
+                )
                 st.error(f"Error processing your query: {e}")
+                
