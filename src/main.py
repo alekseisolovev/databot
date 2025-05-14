@@ -81,7 +81,7 @@ with st.sidebar:
     else:
         if st.session_state.current_file_name is not None:
             logger.info(
-                f"File '{st.session_state.current_file_name}' removed due to user action or a new upload."
+                f"File '{st.session_state.current_file_name}' removed."
             )
             st.session_state.messages.clear()
             st.session_state.dataframe = None
