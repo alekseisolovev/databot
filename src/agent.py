@@ -1,8 +1,9 @@
 import io
 import logging
+from typing import Optional, Tuple, Union
 
 import pandas as pd
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import END, START, MessagesState, StateGraph
@@ -40,6 +41,8 @@ Examples of valid queries include:
 
 After executing any tool-based query, interpret the results and give a clear, user-friendly answer.
 Do not just repeat the output—summarize or explain it in a helpful way based on the user's original question.
+When the tool returns a DataFrame or Series, it will be displayed directly to the user alongside your textual response.
+Your textual summary should focus on key insights, interpretations, or answers not immediately obvious from the raw data table.
 
 -----------------
 DataFrame Schema:
@@ -51,24 +54,35 @@ DataFrame Schema:
 def create_agent_graph(df: pd.DataFrame):
     """Creates and compiles the LangGraph agent."""
 
-    @tool
-    def run_dataframe_query(query: str) -> str:
+    @tool(response_format="content_and_artifact")
+    def run_dataframe_query(
+        query: str,
+    ) -> Tuple[str, Optional[Union[pd.DataFrame, pd.Series]]]:
         """
         Executes a Python query or operation on the pandas DataFrame.
-        Use this to get specific data, summaries, or perform calculations.
-        The query should be a string that can be evaluated.
+        Returns a text summary and optionally a DataFrame/Series artifact if the query produces one.
         """
         try:
             result = eval(query, {"df": df, "pd": pd}, {})
-            logger.info(
-                f"Tool Message: Query '{query}' executed. Result: {str(result)}"
-            )
-            return str(result)
+
+            if isinstance(result, (pd.DataFrame, pd.Series)):
+                content = f"Query '{query}' executed successfully and returned a DataFrame artifact."
+                logger.info(
+                    f"Tool 'run_dataframe_query': Query '{query}' returned a DataFrame artifact. Type: {type(result)}, Shape: {result.shape}"
+                )
+                return content, result
+            else:
+                content = (
+                    f"Query '{query}' executed successfully and returned a scalar result."
+                )
+                logger.info(
+                    f"Tool 'run_dataframe_query': Query '{query}' returned a scalar result: {str(result)}"
+                )
+                return content, None
         except Exception as e:
-            logger.error(
-                f"Tool Message: Error executing query: '{query}'. Error: {str(e)}"
-            )
-            return f"Error executing query: '{query}'. Error: {str(e)}"
+            error_message = f"Error executing query: '{query}'. Error: {str(e)}"
+            logger.error(f"Tool 'run_dataframe_query': {error_message}")
+            return error_message, None
 
     tools = [run_dataframe_query]
     tool_node = ToolNode(tools)
@@ -76,10 +90,29 @@ def create_agent_graph(df: pd.DataFrame):
     model = ChatGoogleGenerativeAI(model="gemini-2.0-flash").bind_tools(tools)
 
     def agent_node(state: MessagesState):
+
         logger.debug(f"AI Message: Processing messages: {state['messages']}")
-        response = model.invoke(state["messages"])
-        logger.debug(f"AI Message: Received response from model: {response}")
-        return {"messages": [response]}
+        response_message = model.invoke(state["messages"])
+
+        if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
+            last_tool_message = state["messages"][-1]
+
+            if last_tool_message.artifact is not None:
+                artifact = last_tool_message.artifact
+                logger.info(f"ToolMessage contained artifact. Type: {type(artifact)}")
+
+                if isinstance(artifact, (pd.DataFrame, pd.Series)):
+                    if response_message.additional_kwargs is None:
+                        response_message.additional_kwargs = {}
+                    response_message.additional_kwargs["dataframe"] = artifact
+                    logger.info(
+                        f"Attached DataFrame artifact to AIMessage.additional_kwargs. Type: {type(artifact)}, Shape: {artifact.shape}"
+                    )
+            else:
+                logger.info("ToolMessage reported no artifacts.")
+
+        logger.debug(f"AI Message: Received response from model: {response_message}")
+        return {"messages": [response_message]}
 
     def should_continue(state: MessagesState):
         last_message = state["messages"][-1]
@@ -117,4 +150,3 @@ def create_agent_graph(df: pd.DataFrame):
     graph = builder.compile()
     logger.info("Agent graph compiled successfully.")
     return graph
-    
