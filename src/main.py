@@ -80,9 +80,7 @@ with st.sidebar:
                 st.warning("Agent initialization failed.")
     else:
         if st.session_state.current_file_name is not None:
-            logger.info(
-                f"File '{st.session_state.current_file_name}' removed."
-            )
+            logger.info(f"File '{st.session_state.current_file_name}' removed.")
             st.session_state.messages.clear()
             st.session_state.dataframe = None
             st.session_state.agent = None
@@ -93,8 +91,14 @@ with st.sidebar:
 for message in st.session_state.messages:
     if isinstance(message, HumanMessage):
         st.chat_message("user").write(message.content)
-    elif isinstance(message, AIMessage) and message.content:
-        st.chat_message("assistant").write(message.content)
+    elif isinstance(message, AIMessage):
+        with st.chat_message("assistant"):
+            if message.content:
+                st.write(message.content)
+            if "dataframe" in message.additional_kwargs:
+                artifact = message.additional_kwargs["dataframe"]
+                if isinstance(artifact, (pd.DataFrame, pd.Series)):
+                    st.dataframe(artifact, height=200)
 
 if user_query := st.chat_input("Ask something about your data..."):
     logger.info(f"User query: '{user_query}'")
@@ -112,15 +116,28 @@ if user_query := st.chat_input("Ask something about your data..."):
                 )
                 ai_message = response["messages"][-1] if response["messages"] else None
 
-                if isinstance(ai_message, AIMessage) and ai_message.content:
-                    logger.info(f"Agent response: {ai_message.content}")
+                if isinstance(ai_message, AIMessage):
                     st.session_state.messages.append(ai_message)
-                    st.chat_message("assistant").write(ai_message.content)
+                    with st.chat_message("assistant"):
+                        if ai_message.content:
+                            st.write(ai_message.content)
+                            logger.info(
+                                f"Agent response (content): {ai_message.content}"
+                            )
+                        if "dataframe" in ai_message.additional_kwargs:
+                            artifact = ai_message.additional_kwargs["dataframe"]
+                            if isinstance(artifact, (pd.DataFrame, pd.Series)):
+                                st.dataframe(artifact)
+                                logger.info(
+                                    f"Agent response (artifact). Type: {type(artifact)}, Shape: {artifact.shape}"
+                                )
                 else:
                     logger.warning(
-                        f"The agent did not return a response. Last message: {ai_message}"
+                        f"The agent did not return a valid AIMessage. Received: {ai_message}"
                     )
-                    st.warning("The agent did not return a response.")
+                    st.warning(
+                        "The agent did not return a response or returned an unexpected format."
+                    )
 
             except Exception as e:
                 logger.error(
