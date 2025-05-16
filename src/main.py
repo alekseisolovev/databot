@@ -24,7 +24,7 @@ st.session_state.setdefault("current_file_name", None)
 
 
 def initialize_agent(df: pd.DataFrame, file_name: str):
-    logger.info(f"Attempting to initialize agent for {file_name}")
+    logger.info(f"Agent: Attempting initialization for file '{file_name}'.")
     st.session_state.messages.clear()
     try:
         st.session_state.agent = create_agent_graph(df)
@@ -32,10 +32,13 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
         prompt = get_system_prompt(schema)
         st.session_state.messages.append(SystemMessage(content=prompt))
         st.session_state.current_file_name = file_name
-        logger.info(f"Agent initialized successfully for {file_name}")
+        logger.info(f"Agent: Initialization successful for file '{file_name}'.")
     except Exception as e:
-        logger.error(f"Agent initialization failed for {file_name}: {e}", exc_info=True)
-        st.error(f"Agent initialization failed: {e}")
+        logger.error(
+            f"Agent: Initialization failed for file '{file_name}'. Error: {e}",
+            exc_info=True,
+        )
+        st.error(f"Agent initialization for '{file_name}' failed. Error: {e}")
         st.session_state.agent = None
         st.session_state.dataframe = None
         st.session_state.current_file_name = None
@@ -50,45 +53,68 @@ with st.sidebar:
             st.session_state.current_file_name != uploaded_file.name
             or st.session_state.agent is None
         ):
-            logger.info(f"File uploaded: {uploaded_file.name}")
+            logger.info(f"File Uploader: New file '{uploaded_file.name}' selected.")
             try:
                 df = pd.read_csv(uploaded_file)
                 st.session_state.dataframe = df
                 logger.info(
-                    f"Successfully read CSV: {uploaded_file.name}. Shape: {df.shape}"
+                    f"File Uploader: CSV '{uploaded_file.name}' read successfully. Shape: {df.shape}"
                 )
                 initialize_agent(df, uploaded_file.name)
             except Exception as e:
                 logger.error(
-                    f"Error reading CSV {uploaded_file.name}: {e}", exc_info=True
+                    f"File Uploader: Reading or processing CSV '{uploaded_file.name}' failed. Error: {e}",
+                    exc_info=True,
                 )
-                st.error(f"Error reading or processing CSV: {e}")
+                st.error(
+                    f"Reading or processing CSV '{uploaded_file.name}' failed. Error: {e}"
+                )
                 st.session_state.dataframe = None
                 st.session_state.agent = None
                 st.session_state.current_file_name = None
                 st.session_state.messages.clear()
 
-        if st.session_state.dataframe is not None:
-            st.success("CSV successfully uploaded.")
+        if (
+            st.session_state.dataframe is not None
+            and st.session_state.current_file_name == uploaded_file.name
+        ):
+            st.success(
+                f"CSV '{st.session_state.current_file_name}' uploaded successfully."
+            )
             st.header("Data Preview")
             st.dataframe(st.session_state.dataframe.head(), height=200)
             if st.session_state.agent:
-                st.success("Agent is ready.")
-                st.info("You can now chat about your data.")
+                st.success(
+                    f"Agent for '{st.session_state.current_file_name}' is ready."
+                )
+                st.info(
+                    f"You can now chat about '{st.session_state.current_file_name}'."
+                )
             else:
-                logger.error("Agent initialization failed.")
-                st.warning("Agent initialization failed.")
+                logger.warning(
+                    f"File Uploader: DataFrame '{st.session_state.current_file_name}' is loaded, but agent is not ready."
+                )
+                st.warning(
+                    f"Agent for '{st.session_state.current_file_name}' is not initialized. Check for errors above or try re-uploading."
+                )
     else:
         if st.session_state.current_file_name is not None:
-            logger.info(f"File '{st.session_state.current_file_name}' removed.")
+            logger.info(
+                f"File Uploader: File '{st.session_state.current_file_name}' removed by user."
+            )
             st.session_state.messages.clear()
             st.session_state.dataframe = None
             st.session_state.agent = None
+            previous_file_name = st.session_state.current_file_name
             st.session_state.current_file_name = None
-            st.info("File removed. Agent and chat history cleared.")
+            st.info(
+                f"File '{previous_file_name}' removed. Agent and chat history cleared."
+            )
 
 
 for message in st.session_state.messages:
+    if isinstance(message, SystemMessage):
+        continue
     if isinstance(message, HumanMessage):
         st.chat_message("user").write(message.content)
     elif isinstance(message, AIMessage):
@@ -98,13 +124,17 @@ for message in st.session_state.messages:
             if "dataframe" in message.additional_kwargs:
                 artifact = message.additional_kwargs["dataframe"]
                 if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                    st.dataframe(artifact, height=200)
+                    st.dataframe(artifact)
 
 if user_query := st.chat_input("Ask something about your data..."):
-    logger.info(f"User query: '{user_query}'")
+    logger.info(f"Chat Input: User query received: '{user_query}'")
     if st.session_state.dataframe is None or st.session_state.agent is None:
-        logger.warning("User attempted query without data or agent initialized.")
-        st.warning("Please upload and initialize a CSV file first.")
+        logger.warning(
+            "Chat Input: Query attempt failed - data or agent not initialized."
+        )
+        st.warning(
+            "Please upload a CSV file and ensure the agent is initialized before asking questions."
+        )
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
@@ -114,7 +144,11 @@ if user_query := st.chat_input("Ask something about your data..."):
                 response = st.session_state.agent.invoke(
                     {"messages": st.session_state.messages}
                 )
-                ai_message = response["messages"][-1] if response["messages"] else None
+                ai_message = (
+                    response["messages"][-1]
+                    if response and response["messages"]
+                    else None
+                )
 
                 if isinstance(ai_message, AIMessage):
                     st.session_state.messages.append(ai_message)
@@ -122,26 +156,34 @@ if user_query := st.chat_input("Ask something about your data..."):
                         if ai_message.content:
                             st.write(ai_message.content)
                             logger.info(
-                                f"Agent response (content): {ai_message.content}"
+                                f"Chat Response: Agent content received: '{str(ai_message.content)}'"
                             )
                         if "dataframe" in ai_message.additional_kwargs:
                             artifact = ai_message.additional_kwargs["dataframe"]
                             if isinstance(artifact, (pd.DataFrame, pd.Series)):
                                 st.dataframe(artifact)
                                 logger.info(
-                                    f"Agent response (artifact). Type: {type(artifact)}, Shape: {artifact.shape}"
+                                    f"Chat Response: Agent artifact received. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
                                 )
+                        elif not ai_message.content:
+                            logger.info(
+                                "Chat Response: Agent AIMessage has no textual content or dataframe artifact."
+                            )
+                            st.warning(
+                                "Agent provided no response or the artifact for this turn."
+                            )
+
                 else:
                     logger.warning(
-                        f"The agent did not return a valid AIMessage. Received: {ai_message}"
+                        f"Chat Response: Agent did not return a valid AIMessage. Last message in response: {type(ai_message)}"
                     )
                     st.warning(
-                        "The agent did not return a response or returned an unexpected format."
+                        "Agent response issue: The agent's response was not in the expected format."
                     )
 
             except Exception as e:
                 logger.error(
-                    f"Error processing user query '{user_query}': {e}", exc_info=True
+                    f"Chat Response: Processing user query '{user_query}' failed. Error: {e}",
+                    exc_info=True,
                 )
-                st.error(f"Error processing your query: {e}")
-                
+                st.error(f"Processing your query '{user_query}' failed. Error: {e}")
