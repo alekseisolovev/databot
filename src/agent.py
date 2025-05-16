@@ -72,11 +72,9 @@ def create_agent_graph(df: pd.DataFrame):
                 )
                 return content, result
             else:
-                content = (
-                    f"Query executed: '{query}'. Result is a scalar: {str(result)}."
-                )
+                content = f"Query executed: '{query}'. Result: {str(result)}."
                 logger.info(
-                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Scalar result: {str(result)}"
+                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result: {str(result)}"
                 )
                 return content, None
         except Exception as e:
@@ -111,9 +109,7 @@ def create_agent_graph(df: pd.DataFrame):
             else:
                 logger.info("Agent Node: ToolMessage reported no artifact.")
 
-        logger.debug(
-            f"Agent Node: Model response received: {response_message.content[:200]}..."
-        )
+        logger.debug(f"Agent Node: Model response received: {response_message.content}")
         return {"messages": [response_message]}
 
     def should_continue(state: MessagesState):
@@ -133,7 +129,7 @@ def create_agent_graph(df: pd.DataFrame):
             return "tools"
         else:
             logger.info(
-                f"Decision Node: AI provided final response. Content snippet: '{last_message.content[:200]}...' Ending graph."
+                f"Decision Node: AI provided final response. Content: '{last_message.content}'. Ending graph."
             )
             return END
 
@@ -156,3 +152,4 @@ def create_agent_graph(df: pd.DataFrame):
     except Exception as e:
         logger.error(f"Agent: Graph compilation failed. Error: {e}", exc_info=True)
         raise
+        
