@@ -72,16 +72,16 @@ def create_agent_graph(df: pd.DataFrame):
                 )
                 return content, result
             else:
-                content = f"Query executed: '{query}'. Result is a scalar: {str(result)}."
+                content = (
+                    f"Query executed: '{query}'. Result is a scalar: {str(result)}."
+                )
                 logger.info(
                     f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Scalar result: {str(result)}"
                 )
                 return content, None
         except Exception as e:
             error_message = f"Error executing query '{query}': {str(e)}"
-            logger.error(
-                f"Tool 'run_dataframe_query': {error_message}", exc_info=True
-            )
+            logger.error(f"Tool 'run_dataframe_query': {error_message}", exc_info=True)
             return error_message, None
 
     tools = [run_dataframe_query]
@@ -105,11 +105,15 @@ def create_agent_graph(df: pd.DataFrame):
                         f"Agent Node: Attached artifact to AIMessage. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
                     )
                 else:
-                    logger.warning(f"Agent Node: ToolMessage artifact was not None, but not a DataFrame/Series. Type: {type(artifact)}")
+                    logger.warning(
+                        f"Agent Node: ToolMessage artifact was not None, but not a DataFrame/Series. Type: {type(artifact)}"
+                    )
             else:
                 logger.info("Agent Node: ToolMessage reported no artifact.")
-        
-        logger.debug(f"Agent Node: Model response received: {response_message.content[:200]}...")
+
+        logger.debug(
+            f"Agent Node: Model response received: {response_message.content[:200]}..."
+        )
         return {"messages": [response_message]}
 
     def should_continue(state: MessagesState):
@@ -119,7 +123,7 @@ def create_agent_graph(df: pd.DataFrame):
                 f"Decision Node: Expected AIMessage, got {type(last_message)}. Content: '{last_message.content}'. Ending graph."
             )
             return END
-        
+
         if last_message.tool_calls:
             tool_name = last_message.tool_calls[0]["name"]
             tool_args = last_message.tool_calls[0]["args"]
@@ -128,7 +132,9 @@ def create_agent_graph(df: pd.DataFrame):
             )
             return "tools"
         else:
-            logger.info(f"Decision Node: AI provided final response. Content snippet: '{last_message.content[:200]}...'. Ending graph.")
+            logger.info(
+                f"Decision Node: AI provided final response. Content snippet: '{last_message.content[:200]}...' Ending graph."
+            )
             return END
 
     builder = StateGraph(MessagesState)
@@ -149,4 +155,4 @@ def create_agent_graph(df: pd.DataFrame):
         return graph
     except Exception as e:
         logger.error(f"Agent: Graph compilation failed. Error: {e}", exc_info=True)
-        raise 
+        raise
