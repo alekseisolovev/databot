@@ -130,7 +130,7 @@ if user_query := st.chat_input("Ask something about your data..."):
     logger.info(f"Chat Input: User query received: '{user_query}'")
     if st.session_state.dataframe is None or st.session_state.agent is None:
         logger.warning(
-            "Chat Input: Query attempt failed - data or agent not initialized."
+            "Chat Input: Query attempt failed. Data or agent not initialized."
         )
         st.warning(
             "Please upload a CSV file and ensure the agent is initialized before asking questions."
@@ -139,51 +139,53 @@ if user_query := st.chat_input("Ask something about your data..."):
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
 
-        with st.spinner("Thinking..."):
-            try:
-                response = st.session_state.agent.invoke(
-                    {"messages": st.session_state.messages}
-                )
-                ai_message = (
-                    response["messages"][-1]
-                    if response and response["messages"]
-                    else None
-                )
+        with st.container():
+            with st.spinner("Thinking..."):
+                try:
+                    response = st.session_state.agent.invoke(
+                        {"messages": st.session_state.messages}
+                    )
+                    ai_message = (
+                        response["messages"][-1]
+                        if response and response["messages"]
+                        else None
+                    )
 
-                if isinstance(ai_message, AIMessage):
-                    st.session_state.messages.append(ai_message)
-                    with st.chat_message("assistant"):
-                        if ai_message.content:
-                            st.write(ai_message.content)
-                            logger.info(
-                                f"Chat Response: Agent content received: '{str(ai_message.content)}'"
-                            )
-                        if "dataframe" in ai_message.additional_kwargs:
-                            artifact = ai_message.additional_kwargs["dataframe"]
-                            if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                                st.dataframe(artifact)
+                    if isinstance(ai_message, AIMessage):
+                        st.session_state.messages.append(ai_message)
+                        with st.chat_message("assistant"):
+                            if ai_message.content:
+                                st.write(ai_message.content)
                                 logger.info(
-                                    f"Chat Response: Agent artifact received. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
+                                    f"Chat Response: Agent content received: '{str(ai_message.content)}'"
                                 )
-                        elif not ai_message.content:
-                            logger.info(
-                                "Chat Response: Agent AIMessage has no textual content or dataframe artifact."
-                            )
-                            st.warning(
-                                "Agent provided no response or the artifact for this turn."
-                            )
+                            if "dataframe" in ai_message.additional_kwargs:
+                                artifact = ai_message.additional_kwargs["dataframe"]
+                                if isinstance(artifact, (pd.DataFrame, pd.Series)):
+                                    st.dataframe(artifact)
+                                    logger.info(
+                                        f"Chat Response: Agent artifact received. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
+                                    )
+                            elif not ai_message.content:
+                                logger.info(
+                                    "Chat Response: AIMessage has no response or artifact for this turn."
+                                )
+                                st.warning(
+                                    "Agent provided no response or artifact for this turn."
+                                )
 
-                else:
-                    logger.warning(
-                        f"Chat Response: Agent did not return a valid AIMessage. Last message in response: {type(ai_message)}"
-                    )
-                    st.warning(
-                        "Agent response issue: The agent's response was not in the expected format."
-                    )
+                    else:
+                        logger.warning(
+                            f"Chat Response: Agent did not return a valid AIMessage. Last message in response: {type(ai_message)}"
+                        )
+                        st.warning(
+                            "Agent response issue: The agent's response was not in the expected format."
+                        )
 
-            except Exception as e:
-                logger.error(
-                    f"Chat Response: Processing user query '{user_query}' failed. Error: {e}",
-                    exc_info=True,
-                )
-                st.error(f"Processing your query '{user_query}' failed. Error: {e}")
+                except Exception as e:
+                    logger.error(
+                        f"Chat Response: Processing user query '{user_query}' failed. Error: {e}",
+                        exc_info=True,
+                    )
+                    st.error(f"Processing your query '{user_query}' failed. Error: {e}")
+                    
