@@ -28,9 +28,9 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
     st.session_state.messages.clear()
     try:
         st.session_state.agent = create_agent_graph(df)
-        schema = get_dataframe_schema(df)
-        prompt = get_system_prompt(schema)
-        st.session_state.messages.append(SystemMessage(content=prompt))
+        dataframe_schema = get_dataframe_schema(df)
+        system_prompt = get_system_prompt(dataframe_schema)
+        st.session_state.messages.append(SystemMessage(content=system_prompt))
         st.session_state.current_file_name = file_name
         logger.info(f"Agent: Initialization successful for file '{file_name}'.")
     except Exception as e:
