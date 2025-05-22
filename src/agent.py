@@ -2,6 +2,7 @@ import io
 import logging
 from typing import Optional, Tuple, Union
 
+import matplotlib.figure
 import pandas as pd
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
@@ -30,15 +31,16 @@ You have access to a pandas DataFrame, referred to as 'df', which you can intera
 
 ## General Behavior
 - Based on the user's question, determine whether to respond directly or use the 'run_dataframe_query' tool.
-- If you use the tool, the result (a pandas DataFrame/Series or other object) will be returned to you as an observation.
-- If the tool returns a DataFrame/Series, assume the data will be shown separately and **do not repeat or reprint it.**
-    - Instead, write a general summary or overview, such as: “Here are the results.”, etc.   
+- If you use the tool, the result (a pandas DataFrame/Series, a Matplotlib figure, or other object) will be returned to you as an observation.
+- If the tool returns a DataFrame/Series or a plot/figure, assume the data/plot will be shown separately and **do not repeat or reprint it.**
+    - Instead, write a general summary or overview, such as: “Here are the results.”, or "Here is the requested plot."
     - You may optionally include commentary like: “Let me know if you’d like help interpreting the results.”
 - If the tool returns a string, list, number, or boolean, respond using the result explicitly.
 - Your answer should be clear, concise, and focused on **helping the user understand the data**.
 
 ## Tool Use
 - If a query is needed, write a valid pandas expression using standard syntax.
+- For plotting, ensure your query returns a `matplotlib.figure.Figure` object.
 - Examples of valid queries:
     - View the first 5 rows: "df.head()"
     - Filter rows where 'age' is greater than 30: "df[df['age'] > 30]"
@@ -50,25 +52,45 @@ After executing any tool-based query, interpret the results and give a clear, us
 
 ## End-to-end Examples
 
-1. **User**: What are the column names?  
-   **Tool**: `list(df.columns)` → `['age', 'income', 'gender']`  
-   **Response**: The DataFrame contains the columns: age, income, and gender.
+1.  **User**: What are the column names?
+    **Tool**: `list(df.columns)` → `['age', 'income', 'gender']`
+    **Response**: The DataFrame contains the columns: age, income, and gender.
 
-2. **User**: Show the dataset's statistical summary.  
-   **Tool**: `df.describe()` → `<DataFrame>`  
-   **Response**: Here are the summary statistics for the numeric columns.
+2.  **User**: Show the dataset's statistical summary.
+    **Tool**: `df.describe()` → `<DataFrame>`
+    **Response**: Here are the summary statistics for the numeric columns.
 
-3. **User**: Which values are most common in the gender column?  
-   **Tool**: `df['gender'].value_counts()` → `<Series>`  
-   **Response**: These are the most frequent values in the gender column.
+3.  **User**: Which values are most common in the gender column?
+    **Tool**: `df['gender'].value_counts()` → `<Series>`
+    **Response**: These are the most frequent values in the gender column.
 
-4. **User**: Are there any missing values in the income column?  
-   **Tool**: `df['income'].isnull().sum()` → `12`  
-   **Response**: Yes, there are 12 missing values in the income column.
+4.  **User**: Are there any missing values in the income column?
+    **Tool**: `df['income'].isnull().sum()` → `12`
+    **Response**: Yes, there are 12 missing values in the income column.
 
-5. **User**: Show all rows where age is greater than 50.  
-   **Tool**: `df[df['age'] > 50]` → `<DataFrame>`  
-   **Response**: Here are the rows for people older than 60.
+5.  **User**: Show all rows where age is greater than 50.
+    **Tool**: `df[df['age'] > 50]` → `<DataFrame>`
+    **Response**: Here are the rows for people older than 50.
+
+6.  **User**: Plot a histogram of the 'age' column.
+    **Tool**: `df['age'].plot(kind='hist').figure` → `<Figure>`
+    **Response**: Here is a histogram of the 'age' column.
+
+7.  **User**: Can you show me a bar chart of the 'gender' counts?
+    **Tool**: `df['gender'].value_counts().plot(kind='bar').figure` → `<Figure>`
+    **Response**: Here's a bar chart showing the distribution of genders.
+
+8.  **User**: Create a scatter plot of 'income' vs 'age'.
+    **Tool**: `df.plot.scatter(x='income', y='age').figure` → `<Figure>`
+    **Response**: Here is a scatter plot of income versus age.
+
+9.  **User**: Generate a box plot for 'salary'.
+    **Tool**: `df['salary'].plot(kind='box').figure` → `<Figure>`
+    **Response**: Here is the box plot for salary.
+
+10. **User**: Plot the distribution of 'score' using a density plot.
+    **Tool**: `df['score'].plot(kind='density').figure` → `<Figure>`
+    **Response**: Here's a density plot for the 'score' column.
 
 -----------------
 DataFrame Schema:
@@ -83,10 +105,10 @@ def create_agent_graph(df: pd.DataFrame):
     @tool(response_format="content_and_artifact")
     def run_dataframe_query(
         query: str,
-    ) -> Tuple[str, Optional[Union[pd.DataFrame, pd.Series]]]:
+    ) -> Tuple[str, Optional[Union[pd.DataFrame, pd.Series, matplotlib.figure.Figure]]]:
         """
         Executes a Python query or operation on the pandas DataFrame.
-        Returns a text summary and optionally a DataFrame/Series artifact if the query produces one.
+        Returns a text summary and optionally a DataFrame/Series or Matplotlib Figure artifact.
         """
         try:
             result = eval(query, {"df": df, "pd": pd}, {})
@@ -94,7 +116,13 @@ def create_agent_graph(df: pd.DataFrame):
             if isinstance(result, (pd.DataFrame, pd.Series)):
                 content = f"Query executed: '{query}'. Result is a DataFrame/Series."
                 logger.info(
-                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result type: {type(result)}, Shape: {result.shape}"
+                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result type: {type(result)}, Shape: {getattr(result, 'shape', 'N/A')}"
+                )
+                return content, result
+            elif isinstance(result, matplotlib.figure.Figure):
+                content = f"Query executed: '{query}'. Result is a Matplotlib Figure."
+                logger.info(
+                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result type: {type(result)}"
                 )
                 return content, result
             else:
@@ -121,16 +149,22 @@ def create_agent_graph(df: pd.DataFrame):
             last_tool_message = state["messages"][-1]
             if last_tool_message.artifact is not None:
                 artifact = last_tool_message.artifact
+                if response_message.additional_kwargs is None:
+                    response_message.additional_kwargs = {}
+
                 if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                    if response_message.additional_kwargs is None:
-                        response_message.additional_kwargs = {}
-                    response_message.additional_kwargs["dataframe"] = artifact
+                    response_message.additional_kwargs["dataframe_artifact"] = artifact
                     logger.info(
-                        f"Agent Node: Attached artifact to AIMessage. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
+                        f"Agent Node: Attached DataFrame/Series artifact to AIMessage. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
+                    )
+                elif isinstance(artifact, matplotlib.figure.Figure):
+                    response_message.additional_kwargs["figure_artifact"] = artifact
+                    logger.info(
+                        f"Agent Node: Attached Matplotlib Figure artifact to AIMessage. Type: {type(artifact)}"
                     )
                 else:
                     logger.warning(
-                        f"Agent Node: ToolMessage artifact was not None, but not a DataFrame/Series. Type: {type(artifact)}"
+                        f"Agent Node: ToolMessage artifact was not None, but not a recognized type for attachment. Type: {type(artifact)}"
                     )
             else:
                 logger.info("Agent Node: ToolMessage reported no artifact.")
