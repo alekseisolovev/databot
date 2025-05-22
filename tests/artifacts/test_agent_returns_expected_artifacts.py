@@ -4,13 +4,19 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from src.agent import create_agent_graph, get_dataframe_schema, get_system_prompt
 
 
-def test_agent_returns_expected_series():
-
-    df = pd.read_csv("tests/data/iris.csv")
+def initialize_agent(df):
 
     agent = create_agent_graph(df)
     dataframe_schema = get_dataframe_schema(df)
     system_prompt = get_system_prompt(dataframe_schema)
+
+    return agent, system_prompt
+
+
+def test_agent_returns_expected_series():
+
+    df = pd.read_csv("tests/data/iris.csv")
+    agent, system_prompt = initialize_agent(df)
 
     target = df.groupby("Species")["PetalWidthCm"].mean()
 
@@ -27,10 +33,7 @@ def test_agent_returns_expected_series():
 def test_agent_returns_expected_dataframe():
 
     df = pd.read_csv("tests/data/iris.csv")
-
-    agent = create_agent_graph(df)
-    dataframe_schema = get_dataframe_schema(df)
-    system_prompt = get_system_prompt(dataframe_schema)
+    agent, system_prompt = initialize_agent(df)
 
     target = df.describe()
 
@@ -42,3 +45,4 @@ def test_agent_returns_expected_dataframe():
     output = response["messages"][-1].additional_kwargs["dataframe"]
 
     pd.testing.assert_frame_equal(target, output)
+    
