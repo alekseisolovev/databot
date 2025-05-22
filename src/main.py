@@ -8,7 +8,6 @@ from agent import create_agent_graph, get_dataframe_schema, get_system_prompt
 
 logger = logging.getLogger(__name__)
 
-st.set_page_config(layout="wide")
 st.markdown(
     """
     <h1 style='text-align: center;'>DataBot</h1>
