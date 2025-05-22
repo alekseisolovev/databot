@@ -1,5 +1,6 @@
 import logging
 
+import matplotlib.figure
 import pandas as pd
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -114,16 +115,18 @@ with st.sidebar:
 for message in st.session_state.messages:
     if isinstance(message, SystemMessage):
         continue
-    if isinstance(message, HumanMessage):
-        st.chat_message("user").write(message.content)
-    elif isinstance(message, AIMessage):
-        with st.chat_message("assistant"):
-            if message.content:
-                st.write(message.content)
-            if "dataframe" in message.additional_kwargs:
-                artifact = message.additional_kwargs["dataframe"]
-                if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                    st.dataframe(artifact)
+    with st.chat_message(message.type):
+        st.write(message.content)
+        if isinstance(message, AIMessage):
+            if "dataframe_artifact" in message.additional_kwargs:
+                dataframe_artifact = message.additional_kwargs["dataframe_artifact"]
+                if isinstance(dataframe_artifact, (pd.DataFrame, pd.Series)):
+                    st.dataframe(dataframe_artifact)
+            if "figure_artifact" in message.additional_kwargs:
+                figure_artifact = message.additional_kwargs["figure_artifact"]
+                if isinstance(figure_artifact, matplotlib.figure.Figure):
+                    st.pyplot(figure_artifact)
+
 
 if user_query := st.chat_input("Ask something about your data..."):
     logger.info(f"Chat Input: User query received: '{user_query}'")
@@ -137,7 +140,6 @@ if user_query := st.chat_input("Ask something about your data..."):
     else:
         st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
-
         with st.container():
             with st.spinner("Thinking..."):
                 try:
@@ -149,7 +151,6 @@ if user_query := st.chat_input("Ask something about your data..."):
                         if response and response["messages"]
                         else None
                     )
-
                     if isinstance(ai_message, AIMessage):
                         st.session_state.messages.append(ai_message)
                         with st.chat_message("assistant"):
@@ -158,12 +159,27 @@ if user_query := st.chat_input("Ask something about your data..."):
                                 logger.info(
                                     f"Chat Response: Agent content received: '{str(ai_message.content)}'"
                                 )
-                            if "dataframe" in ai_message.additional_kwargs:
-                                artifact = ai_message.additional_kwargs["dataframe"]
-                                if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                                    st.dataframe(artifact)
+                            if "dataframe_artifact" in ai_message.additional_kwargs:
+                                dataframe_artifact = ai_message.additional_kwargs[
+                                    "dataframe_artifact"
+                                ]
+                                if isinstance(
+                                    dataframe_artifact, (pd.DataFrame, pd.Series)
+                                ):
+                                    st.dataframe(dataframe_artifact)
                                     logger.info(
-                                        f"Chat Response: Agent artifact received. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
+                                        f"Chat Response: Agent artifact received. Type: {type(dataframe_artifact)}, Shape: {getattr(dataframe_artifact, 'shape', 'N/A')}"
+                                    )
+                            if "figure_artifact" in ai_message.additional_kwargs:
+                                figure_artifact = ai_message.additional_kwargs[
+                                    "figure_artifact"
+                                ]
+                                if isinstance(
+                                    figure_artifact, matplotlib.figure.Figure
+                                ):
+                                    st.pyplot(figure_artifact)
+                                    logger.info(
+                                        f"Chat Response: Agent artifact received. Type: {type(figure_artifact)}"
                                     )
                             elif not ai_message.content:
                                 logger.info(
@@ -172,7 +188,6 @@ if user_query := st.chat_input("Ask something about your data..."):
                                 st.warning(
                                     "Agent provided no response or artifact for this turn."
                                 )
-
                     else:
                         logger.warning(
                             f"Chat Response: Agent did not return a valid AIMessage. Last message in response: {type(ai_message)}"
