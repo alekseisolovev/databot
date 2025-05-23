@@ -31,7 +31,11 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
         dataframe_schema = get_dataframe_schema(df)
         system_prompt = get_system_prompt(dataframe_schema)
         st.session_state.messages.append(SystemMessage(content=system_prompt))
-        st.session_state.messages.append(AIMessage(content="Hi! I'm DataBot. Feel free to ask me anything about this dataset."))
+        st.session_state.messages.append(
+            AIMessage(
+                content="Hi! I'm DataBot. Feel free to ask me anything about this dataset."
+            )
+        )
         st.session_state.current_file_name = file_name
         logger.info(f"Agent: Initialization successful for file '{file_name}'.")
     except Exception as e:
@@ -39,7 +43,7 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
             f"Agent: Initialization failed for file '{file_name}'. Error: {e}",
             exc_info=True,
         )
-        st.error(f"Agent initialization for '{file_name}' failed. Error: {e}")
+        st.error(f"Agent initialization failed. Error: {e}")
         st.session_state.agent = None
         st.session_state.dataframe = None
         st.session_state.current_file_name = None
@@ -67,9 +71,7 @@ with st.sidebar:
                     f"File Uploader: Reading or processing CSV '{uploaded_file.name}' failed. Error: {e}",
                     exc_info=True,
                 )
-                st.error(
-                    f"Reading or processing CSV '{uploaded_file.name}' failed. Error: {e}"
-                )
+                st.error(f"Reading or processing CSV failed. Error: {e}")
                 st.session_state.dataframe = None
                 st.session_state.agent = None
                 st.session_state.current_file_name = None
@@ -79,24 +81,17 @@ with st.sidebar:
             st.session_state.dataframe is not None
             and st.session_state.current_file_name == uploaded_file.name
         ):
-            st.success(
-                f"CSV '{st.session_state.current_file_name}' uploaded successfully."
-            )
+            st.success(f"CSV uploaded successfully.")
             st.header("Data Preview")
             st.dataframe(st.session_state.dataframe.head(), height=200)
             if st.session_state.agent:
-                st.success(
-                    f"Agent for '{st.session_state.current_file_name}' is ready."
-                )
-                st.info(
-                    f"You can now chat about '{st.session_state.current_file_name}'."
-                )
+                st.success(f"Agent is ready.")
             else:
                 logger.warning(
                     f"File Uploader: DataFrame '{st.session_state.current_file_name}' is loaded, but agent is not ready."
                 )
                 st.warning(
-                    f"Agent for '{st.session_state.current_file_name}' is not initialized. Check for errors above or try re-uploading."
+                    f"Agent is not initialized. Check for errors above or try re-uploading."
                 )
     else:
         if st.session_state.current_file_name is not None:
