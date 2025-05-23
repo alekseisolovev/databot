@@ -25,7 +25,7 @@ def test_agent_returns_expected_series():
     messages = initial_state["messages"] + [HumanMessage(content=user_input)]
 
     response = agent.invoke({"messages": messages})
-    output = response["messages"][-1].additional_kwargs["dataframe"]
+    output = response["messages"][-1].additional_kwargs["dataframe_artifact"]
 
     pd.testing.assert_series_equal(target, output)
 
@@ -42,7 +42,7 @@ def test_agent_returns_expected_dataframe():
     messages = initial_state["messages"] + [HumanMessage(content=user_input)]
 
     response = agent.invoke({"messages": messages})
-    output = response["messages"][-1].additional_kwargs["dataframe"]
+    output = response["messages"][-1].additional_kwargs["dataframe_artifact"]
 
     pd.testing.assert_frame_equal(target, output)
     
