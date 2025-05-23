@@ -31,6 +31,7 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
         dataframe_schema = get_dataframe_schema(df)
         system_prompt = get_system_prompt(dataframe_schema)
         st.session_state.messages.append(SystemMessage(content=system_prompt))
+        st.session_state.messages.append(AIMessage(content="Hi! I'm DataBot. Feel free to ask me anything about this dataset."))
         st.session_state.current_file_name = file_name
         logger.info(f"Agent: Initialization successful for file '{file_name}'.")
     except Exception as e:
