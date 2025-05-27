@@ -146,21 +146,18 @@ def create_agent_graph(df: pd.DataFrame):
                 artifact = last_tool_message.artifact
                 if response_message.additional_kwargs is None:
                     response_message.additional_kwargs = {}
-
                 if isinstance(artifact, (pd.DataFrame, pd.Series)):
                     response_message.additional_kwargs["dataframe_artifact"] = artifact
                     logger.info(
-                        f"Agent Node: Attached DataFrame/Series artifact to AIMessage. Type: {type(artifact)}, Shape: {getattr(artifact, 'shape', 'N/A')}"
+                        f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
                     )
                 elif isinstance(artifact, matplotlib.figure.Figure):
                     response_message.additional_kwargs["figure_artifact"] = artifact
                     logger.info(
-                        f"Agent Node: Attached Matplotlib Figure artifact to AIMessage. Type: {type(artifact)}"
+                        f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
                     )
                 else:
-                    logger.warning(
-                        f"Agent Node: ToolMessage artifact was not None, but not a recognized type for attachment. Type: {type(artifact)}"
-                    )
+                    logger.warning(f"Agent Node: Unrecognized artifact type: {type(artifact)}"                    )
             else:
                 logger.info("Agent Node: ToolMessage reported no artifact.")
 
