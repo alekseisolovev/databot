@@ -17,14 +17,14 @@ logger = logging.getLogger(__name__)
 
 
 def get_dataframe_schema(df: pd.DataFrame) -> str:
-    """Generates a string representation of the DataFrame's schema."""
+    """Get DataFrame schema as a string."""
     buffer = io.StringIO()
     df.info(buf=buffer, memory_usage=False, verbose=True, show_counts=True)
     return buffer.getvalue()
 
 
 def get_system_prompt(dataframe_schema: str) -> str:
-    """Generates the system prompt for the agent."""
+    """Get system prompt for the agent."""
     return f"""
 You are a helpful AI assistant for data analysis.
 You have access to a pandas DataFrame, referred to as 'df', which you can interact with using Python code.
@@ -126,22 +126,23 @@ class Agent:
             """
             try:
                 result = eval(query, {"df": self.df, "pd": pd}, {})
-                content, artifact = f"Query '{query}' executed.", None
+                artifact = None
 
                 if isinstance(
                     result, (pd.DataFrame, pd.Series, matplotlib.figure.Figure)
                 ):
-                    content += f" Result: {type(result)}"
+                    content = f"Query '{query}' returned {type(result)}."
                     artifact = result
                 else:
-                    content += f" Result: {str(result)}"
+                    content = f"Query '{query}' returned {str(result)}."
                 logger.info(f"Tool 'run_dataframe_query': {content}")
+
                 return content, artifact
 
             except Exception as e:
                 error_message = f"Error executing query '{query}': {str(e)}"
                 logger.error(
-                    f"Tool 'run_dataframe_query': {error_message}", exc_info=True
+                    f"Tool Node 'run_dataframe_query': {error_message}", exc_info=True
                 )
                 return error_message, None
 
@@ -150,24 +151,20 @@ class Agent:
         self.model = self.model.bind_tools(tools)
 
         def agent_node(state: MessagesState):
-
-            response_message = self.model.invoke(state["messages"])
+            response = self.model.invoke(state["messages"])
 
             if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
                 last_tool_message = state["messages"][-1]
                 if last_tool_message.artifact is not None:
                     artifact = last_tool_message.artifact
-                    if response_message.additional_kwargs is None:
-                        response_message.additional_kwargs = {}
+                    response.additional_kwargs = response.additional_kwargs or {}
+                    key = None
                     if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                        response_message.additional_kwargs["dataframe_artifact"] = (
-                            artifact
-                        )
-                        logger.info(
-                            f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
-                        )
+                        key = "dataframe_artifact"
                     elif isinstance(artifact, matplotlib.figure.Figure):
-                        response_message.additional_kwargs["figure_artifact"] = artifact
+                        key = "figure_artifact"
+                    if key:
+                        response.additional_kwargs[key] = artifact
                         logger.info(
                             f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
                         )
@@ -176,15 +173,15 @@ class Agent:
                             f"Agent Node: Unrecognized artifact type: {type(artifact)}"
                         )
                 else:
-                    logger.info("Agent Node: ToolMessage reported no artifact.")
+                    logger.info("Agent Node: ToolMessage returned no artifact.")
 
-            return {"messages": [response_message]}
+            return {"messages": [response]}
 
         def should_continue(state: MessagesState):
             last_message = state["messages"][-1]
             if not isinstance(last_message, AIMessage):
                 logger.error(
-                    f"Decision Node: Expected AIMessage, got {type(last_message)}. Content: '{last_message.content}'. Ending graph."
+                    f"Router Node: Expected AIMessage, got {type(last_message)}. Content: '{last_message.content}'. Ending graph."
                 )
                 return END
 
@@ -192,12 +189,12 @@ class Agent:
                 tool_name = last_message.tool_calls[0]["name"]
                 tool_args = last_message.tool_calls[0]["args"]
                 logger.info(
-                    f"Decision Node: AI requests tool '{tool_name}' with args: {tool_args}. Routing to tools."
+                    f"Router Node: AI requests tool '{tool_name}' with args: {tool_args}."
                 )
                 return "tools"
             else:
                 logger.info(
-                    f"Decision Node: AI provided final response. Content: '{last_message.content}'. Ending graph."
+                    f"Router Node: AI provided final response. Content: '{last_message.content}'. Ending graph."
                 )
                 return END
 
@@ -215,11 +212,12 @@ class Agent:
 
         try:
             graph = builder.compile()
-            logger.info("Agent: Graph compiled successfully.")
+            logger.info("Graph compiled.")
             return graph
         except Exception as e:
-            logger.error(f"Agent: Graph compilation failed. Error: {e}", exc_info=True)
+            logger.error(f"Graph compilation failed. Error: {e}", exc_info=True)
             raise
 
     def invoke(self, messages: list) -> Optional[AIMessage]:
         return self.graph.invoke(messages)
+        
