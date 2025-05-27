@@ -117,25 +117,16 @@ def create_agent_graph(df: pd.DataFrame):
         """
         try:
             result = eval(query, {"df": df, "pd": pd}, {})
+            content, artifact = f"Query '{query}' executed.", None
 
-            if isinstance(result, (pd.DataFrame, pd.Series)):
-                content = f"Query executed: '{query}'. Result is a DataFrame/Series."
-                logger.info(
-                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result type: {type(result)}, Shape: {getattr(result, 'shape', 'N/A')}"
-                )
-                return content, result
-            elif isinstance(result, matplotlib.figure.Figure):
-                content = f"Query executed: '{query}'. Result is a Matplotlib Figure."
-                logger.info(
-                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result type: {type(result)}"
-                )
-                return content, result
+            if isinstance(result, (pd.DataFrame, pd.Series, matplotlib.figure.Figure)):
+                content += f" Result: {type(result)}"
+                artifact = result
             else:
-                content = f"Query executed: '{query}'. Result: {str(result)}."
-                logger.info(
-                    f"Tool 'run_dataframe_query': Query '{query}' executed successfully. Result: {str(result)}"
-                )
-                return content, None
+                content += f" Result: {str(result)}"
+            logger.info(f"Tool 'run_dataframe_query': {content}")
+            return content, artifact
+
         except Exception as e:
             error_message = f"Error executing query '{query}': {str(e)}"
             logger.error(f"Tool 'run_dataframe_query': {error_message}", exc_info=True)
