@@ -107,8 +107,13 @@ def create_agent_graph(df: pd.DataFrame):
         query: str,
     ) -> Tuple[str, Optional[Union[pd.DataFrame, pd.Series, matplotlib.figure.Figure]]]:
         """
-        Executes a Python query or operation on the pandas DataFrame.
-        Returns a text summary and optionally a DataFrame/Series or Matplotlib Figure artifact.
+        Executes a Python query or operation on a pandas DataFrame.
+
+        Returns:
+            A tuple containing:
+            - The primary textual output (str): This can be a string representation of a scalar, a list or an error message.
+            - An optional artifact (pd.DataFrame, pd.Series, or matplotlib.figure.Figure)
+            if the query result is a complex object; otherwise, None.
         """
         try:
             result = eval(query, {"df": df, "pd": pd}, {})
@@ -142,7 +147,6 @@ def create_agent_graph(df: pd.DataFrame):
     model = ChatGoogleGenerativeAI(model="gemini-2.0-flash").bind_tools(tools)
 
     def agent_node(state: MessagesState):
-        logger.debug(f"Agent Node: Processing messages: {state['messages']}")
         response_message = model.invoke(state["messages"])
 
         if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
