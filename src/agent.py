@@ -138,8 +138,9 @@ def create_agent_graph(df: pd.DataFrame):
     model = ChatGoogleGenerativeAI(model="gemini-2.0-flash").bind_tools(tools)
 
     def agent_node(state: MessagesState):
-        response_message = model.invoke(state["messages"])
 
+        response_message = model.invoke(state["messages"])
+        
         if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
             last_tool_message = state["messages"][-1]
             if last_tool_message.artifact is not None:
@@ -161,7 +162,6 @@ def create_agent_graph(df: pd.DataFrame):
             else:
                 logger.info("Agent Node: ToolMessage reported no artifact.")
 
-        logger.debug(f"Agent Node: Model response received: {response_message.content}")
         return {"messages": [response_message]}
 
     def should_continue(state: MessagesState):
