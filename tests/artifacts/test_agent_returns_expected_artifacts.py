@@ -1,12 +1,12 @@
 import pandas as pd
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from src.agent import create_agent_graph, get_dataframe_schema, get_system_prompt
+from src.agent import Agent, get_dataframe_schema, get_system_prompt
 
 
 def initialize_agent(df):
 
-    agent = create_agent_graph(df)
+    agent = Agent(df)
     dataframe_schema = get_dataframe_schema(df)
     system_prompt = get_system_prompt(dataframe_schema)
 
