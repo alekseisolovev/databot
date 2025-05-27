@@ -159,24 +159,18 @@ if user_query := st.chat_input("Ask something about your data..."):
                                 dataframe_artifact = ai_message.additional_kwargs[
                                     "dataframe_artifact"
                                 ]
-                                if isinstance(
-                                    dataframe_artifact, (pd.DataFrame, pd.Series)
-                                ):
-                                    st.dataframe(dataframe_artifact)
-                                    logger.info(
-                                        f"Chat Response: Agent artifact received. Type: {type(dataframe_artifact)}, Shape: {getattr(dataframe_artifact, 'shape', 'N/A')}"
-                                    )
+                                st.dataframe(dataframe_artifact)
+                                logger.info(
+                                    f"Chat Response: Agent artifact received. Type: {type(dataframe_artifact)}, Shape: {getattr(dataframe_artifact, 'shape', 'N/A')}"
+                                )
                             if "figure_artifact" in ai_message.additional_kwargs:
                                 figure_artifact = ai_message.additional_kwargs[
                                     "figure_artifact"
                                 ]
-                                if isinstance(
-                                    figure_artifact, matplotlib.figure.Figure
-                                ):
-                                    st.pyplot(figure_artifact)
-                                    logger.info(
-                                        f"Chat Response: Agent artifact received. Type: {type(figure_artifact)}"
-                                    )
+                                st.pyplot(figure_artifact)
+                                logger.info(
+                                    f"Chat Response: Agent artifact received. Type: {type(figure_artifact)}"
+                                )
                             elif not ai_message.content:
                                 logger.info(
                                     "Chat Response: AIMessage has no response or artifact for this turn."
