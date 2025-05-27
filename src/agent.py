@@ -104,7 +104,7 @@ class Agent:
     def __init__(self, df: pd.DataFrame):
 
         self.df = df
-        self.model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+        self.model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-05-20")
         self.graph = self._build_graph()
 
     def _build_graph(self):
