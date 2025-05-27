@@ -99,109 +99,127 @@ DataFrame Schema:
 """
 
 
-def create_agent_graph(df: pd.DataFrame):
-    """Creates and compiles the LangGraph agent."""
+class Agent:
 
-    @tool(response_format="content_and_artifact")
-    def run_dataframe_query(
-        query: str,
-    ) -> Tuple[str, Optional[Union[pd.DataFrame, pd.Series, matplotlib.figure.Figure]]]:
-        """
-        Executes a Python query or operation on a pandas DataFrame.
+    def __init__(self, df: pd.DataFrame):
 
-        Returns:
-            A tuple containing:
-            - The primary textual output (str): This can be a string representation of a scalar, a list or an error message.
-            - An optional artifact (pd.DataFrame, pd.Series, or matplotlib.figure.Figure)
-            if the query result is a complex object; otherwise, None.
-        """
-        try:
-            result = eval(query, {"df": df, "pd": pd}, {})
-            content, artifact = f"Query '{query}' executed.", None
+        self.df = df
+        self.model = ChatGoogleGenerativeAI(model="gemini-2.0-flash")
+        self.graph = self._build_graph()
 
-            if isinstance(result, (pd.DataFrame, pd.Series, matplotlib.figure.Figure)):
-                content += f" Result: {type(result)}"
-                artifact = result
-            else:
-                content += f" Result: {str(result)}"
-            logger.info(f"Tool 'run_dataframe_query': {content}")
-            return content, artifact
+    def _build_graph(self):
 
-        except Exception as e:
-            error_message = f"Error executing query '{query}': {str(e)}"
-            logger.error(f"Tool 'run_dataframe_query': {error_message}", exc_info=True)
-            return error_message, None
+        @tool(response_format="content_and_artifact")
+        def run_dataframe_query(
+            query: str,
+        ) -> Tuple[
+            str, Optional[Union[pd.DataFrame, pd.Series, matplotlib.figure.Figure]]
+        ]:
+            """
+            Executes a Python query or operation on a pandas DataFrame.
 
-    tools = [run_dataframe_query]
-    tool_node = ToolNode(tools)
+            Returns:
+                A tuple containing:
+                - The primary textual output (str): This can be a string representation of a scalar, a list or an error message.
+                - An optional artifact (pd.DataFrame, pd.Series, or matplotlib.figure.Figure)
+                if the query result is a complex object; otherwise, None.
+            """
+            try:
+                result = eval(query, {"df": self.df, "pd": pd}, {})
+                content, artifact = f"Query '{query}' executed.", None
 
-    model = ChatGoogleGenerativeAI(model="gemini-2.0-flash").bind_tools(tools)
-
-    def agent_node(state: MessagesState):
-
-        response_message = model.invoke(state["messages"])
-        
-        if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
-            last_tool_message = state["messages"][-1]
-            if last_tool_message.artifact is not None:
-                artifact = last_tool_message.artifact
-                if response_message.additional_kwargs is None:
-                    response_message.additional_kwargs = {}
-                if isinstance(artifact, (pd.DataFrame, pd.Series)):
-                    response_message.additional_kwargs["dataframe_artifact"] = artifact
-                    logger.info(
-                        f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
-                    )
-                elif isinstance(artifact, matplotlib.figure.Figure):
-                    response_message.additional_kwargs["figure_artifact"] = artifact
-                    logger.info(
-                        f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
-                    )
+                if isinstance(
+                    result, (pd.DataFrame, pd.Series, matplotlib.figure.Figure)
+                ):
+                    content += f" Result: {type(result)}"
+                    artifact = result
                 else:
-                    logger.warning(f"Agent Node: Unrecognized artifact type: {type(artifact)}"                    )
+                    content += f" Result: {str(result)}"
+                logger.info(f"Tool 'run_dataframe_query': {content}")
+                return content, artifact
+
+            except Exception as e:
+                error_message = f"Error executing query '{query}': {str(e)}"
+                logger.error(
+                    f"Tool 'run_dataframe_query': {error_message}", exc_info=True
+                )
+                return error_message, None
+
+        tools = [run_dataframe_query]
+        tool_node = ToolNode(tools)
+        self.model = self.model.bind_tools(tools)
+
+        def agent_node(state: MessagesState):
+
+            response_message = self.model.invoke(state["messages"])
+
+            if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
+                last_tool_message = state["messages"][-1]
+                if last_tool_message.artifact is not None:
+                    artifact = last_tool_message.artifact
+                    if response_message.additional_kwargs is None:
+                        response_message.additional_kwargs = {}
+                    if isinstance(artifact, (pd.DataFrame, pd.Series)):
+                        response_message.additional_kwargs["dataframe_artifact"] = (
+                            artifact
+                        )
+                        logger.info(
+                            f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
+                        )
+                    elif isinstance(artifact, matplotlib.figure.Figure):
+                        response_message.additional_kwargs["figure_artifact"] = artifact
+                        logger.info(
+                            f"Agent Node: Attached {type(artifact)} artifact to AIMessage."
+                        )
+                    else:
+                        logger.warning(
+                            f"Agent Node: Unrecognized artifact type: {type(artifact)}"
+                        )
+                else:
+                    logger.info("Agent Node: ToolMessage reported no artifact.")
+
+            return {"messages": [response_message]}
+
+        def should_continue(state: MessagesState):
+            last_message = state["messages"][-1]
+            if not isinstance(last_message, AIMessage):
+                logger.error(
+                    f"Decision Node: Expected AIMessage, got {type(last_message)}. Content: '{last_message.content}'. Ending graph."
+                )
+                return END
+
+            if last_message.tool_calls:
+                tool_name = last_message.tool_calls[0]["name"]
+                tool_args = last_message.tool_calls[0]["args"]
+                logger.info(
+                    f"Decision Node: AI requests tool '{tool_name}' with args: {tool_args}. Routing to tools."
+                )
+                return "tools"
             else:
-                logger.info("Agent Node: ToolMessage reported no artifact.")
+                logger.info(
+                    f"Decision Node: AI provided final response. Content: '{last_message.content}'. Ending graph."
+                )
+                return END
 
-        return {"messages": [response_message]}
+        builder = StateGraph(MessagesState)
+        builder.add_node("agent", agent_node)
+        builder.add_node("tools", tool_node)
 
-    def should_continue(state: MessagesState):
-        last_message = state["messages"][-1]
-        if not isinstance(last_message, AIMessage):
-            logger.error(
-                f"Decision Node: Expected AIMessage, got {type(last_message)}. Content: '{last_message.content}'. Ending graph."
-            )
-            return END
+        builder.add_edge(START, "agent")
+        builder.add_conditional_edges(
+            "agent",
+            should_continue,
+            {"tools": "tools", END: END},
+        )
+        builder.add_edge("tools", "agent")
 
-        if last_message.tool_calls:
-            tool_name = last_message.tool_calls[0]["name"]
-            tool_args = last_message.tool_calls[0]["args"]
-            logger.info(
-                f"Decision Node: AI requests tool '{tool_name}' with args: {tool_args}. Routing to tools."
-            )
-            return "tools"
-        else:
-            logger.info(
-                f"Decision Node: AI provided final response. Content: '{last_message.content}'. Ending graph."
-            )
-            return END
+        try:
+            graph = builder.compile()
+            logger.info("Agent: Graph compiled successfully.")
+            return graph
+        except Exception as e:
+            logger.error(f"Agent: Graph compilation failed. Error: {e}", exc_info=True)
+            raise
 
-    builder = StateGraph(MessagesState)
-    builder.add_node("agent", agent_node)
-    builder.add_node("tools", tool_node)
-
-    builder.add_edge(START, "agent")
-    builder.add_conditional_edges(
-        "agent",
-        should_continue,
-        {"tools": "tools", END: END},
-    )
-    builder.add_edge("tools", "agent")
-
-    try:
-        graph = builder.compile()
-        logger.info("Agent: Graph compiled successfully.")
-        return graph
-    except Exception as e:
-        logger.error(f"Agent: Graph compilation failed. Error: {e}", exc_info=True)
-        raise
-        
+    def invoke(self, messages: list) -> Optional[AIMessage]:
+        return self.graph.invoke(messages)
