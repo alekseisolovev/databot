@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from agent import create_agent_graph, get_dataframe_schema, get_system_prompt
+from agent import Agent, get_dataframe_schema, get_system_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
     logger.info(f"Agent: Attempting initialization for file '{file_name}'.")
     st.session_state.messages.clear()
     try:
-        st.session_state.agent = create_agent_graph(df)
+        st.session_state.agent = Agent(df)
         dataframe_schema = get_dataframe_schema(df)
         system_prompt = get_system_prompt(dataframe_schema)
         st.session_state.messages.append(SystemMessage(content=system_prompt))
