@@ -2,6 +2,11 @@
 
 A LangGraph-based AI agent designed to assist with data science workflows and analytical tasks.
 
+## Features
+
+* The AI agent can answer questions about the provided dataset and return results directly as dataframes or series
+* It can create visual plots to help explore the data in more detail
+
 ## Prerequisites
 
 Before running the app, ensure you create an `.env` file in the project root and add your Google API key:
