@@ -1,6 +1,7 @@
 import logging
 
 import matplotlib.figure
+import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
@@ -8,6 +9,9 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from agent import Agent, get_dataframe_schema, get_system_prompt
 
 logger = logging.getLogger(__name__)
+
+
+plt.style.use("dark_background")
 
 st.markdown(
     """
