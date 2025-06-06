@@ -35,8 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=${APP_USER}:${APP_GROUP} requirements.app.txt requirements.dev.txt ./
-RUN pip install -r requirements.app.txt && \
-    pip install -r requirements.dev.txt
+RUN pip install -r requirements.app.txt 
+RUN pip install -r requirements.dev.txt
 
 COPY --chown=${APP_USER}:${APP_GROUP} . .
 
