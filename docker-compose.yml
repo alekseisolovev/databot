@@ -25,5 +25,8 @@ services:
       - .:/app
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
+      - LANGFUSE_HOST=https://cloud.langfuse.com
     env_file:
       - .env
