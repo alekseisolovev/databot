@@ -16,12 +16,12 @@ RUN groupadd --system --gid ${GROUP_ID} ${APP_GROUP} \
 WORKDIR /app
 ENV PYTHONPATH="/app"
 
-RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --upgrade pip
 
 FROM base AS app
 
 COPY --chown=${APP_USER}:${APP_GROUP} requirements.app.txt .
-RUN pip install --no-cache-dir -r requirements.app.txt
+RUN pip install -r requirements.app.txt
 
 USER ${APP_USER}
 
@@ -35,8 +35,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=${APP_USER}:${APP_GROUP} requirements.app.txt requirements.dev.txt ./
-RUN pip install --no-cache-dir -r requirements.app.txt && \
-    pip install --no-cache-dir -r requirements.dev.txt
+RUN pip install -r requirements.app.txt && \
+    pip install -r requirements.dev.txt
 
 COPY --chown=${APP_USER}:${APP_GROUP} . .
 
