@@ -3,15 +3,15 @@ FROM python:3.11-slim AS base
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-ENV APP_USER=appuser \
-    APP_GROUP=appgroup \
-    HOME=/home/appuser
+ENV USER_NAME=user
+ENV GROUP_NAME=group
+ENV HOME=/home/${USER_NAME}
 
 ARG USER_ID=1000
 ARG GROUP_ID=1000
 
-RUN groupadd --system --gid ${GROUP_ID} ${APP_GROUP} \
-    && useradd --system --uid ${USER_ID} --gid ${APP_GROUP} --no-log-init --home ${HOME} --create-home --shell /bin/bash ${APP_USER}
+RUN groupadd --system --gid ${GROUP_ID} ${GROUP_NAME} \
+    && useradd --system --uid ${USER_ID} --gid ${GROUP_NAME} --no-log-init --home ${HOME} --create-home --shell /bin/bash ${USER_NAME}
 
 WORKDIR /app
 
@@ -19,10 +19,10 @@ RUN pip install --upgrade pip
 
 FROM base AS app
 
-COPY --chown=${APP_USER}:${APP_GROUP} requirements.app.txt .
+COPY --chown=${USER_NAME}:${GROUP_NAME} requirements.app.txt .
 RUN pip install -r requirements.app.txt
 
-USER ${APP_USER}
+USER ${USER_NAME}
 
 FROM base AS dev
 
@@ -33,10 +33,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-COPY --chown=${APP_USER}:${APP_GROUP} requirements.app.txt requirements.dev.txt ./
-RUN pip install -r requirements.app.txt 
+COPY --chown=${USER_NAME}:${GROUP_NAME} requirements.app.txt requirements.dev.txt ./
+RUN pip install -r requirements.app.txt
 RUN pip install -r requirements.dev.txt
 
-COPY --chown=${APP_USER}:${APP_GROUP} . .
+COPY --chown=${USER_NAME}:${GROUP_NAME} . .
 
-USER ${APP_USER}
+USER ${USER_NAME}
