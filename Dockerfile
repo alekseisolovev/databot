@@ -1,52 +1,27 @@
 FROM python:3.11-slim AS base
-
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=1 \
-    POETRY_VIRTUALENVS_CREATE=1 \
-    PATH="/app/.venv/bin:$PATH"
-
-ENV USER_NAME=user
-ENV GROUP_NAME=group
-ENV HOME=/home/${USER_NAME}
-
-ARG USER_ID=1000
-ARG GROUP_ID=1000
-
-RUN groupadd --system --gid ${GROUP_ID} ${GROUP_NAME} \
-    && useradd --system --uid ${USER_ID} --gid ${GROUP_NAME} --no-log-init --home ${HOME} --create-home --shell /bin/bash ${USER_NAME}
+    POETRY_VIRTUALENVS_CREATE=false
 
 WORKDIR /app
-
 RUN pip install --upgrade pip
 RUN pip install poetry
 
-FROM base AS app
+RUN addgroup --system --gid 1001 appgroup && \
+    adduser --system --uid 1001 --ingroup appgroup --home /home/appuser appuser
 
-COPY --chown=${USER_NAME}:${GROUP_NAME} pyproject.toml poetry.lock* ./
-RUN poetry install --no-root --without dev
-
-COPY --chown=${USER_NAME}:${GROUP_NAME} src ./src
-
-USER ${USER_NAME}
-
+FROM base AS builder
+COPY --chown=appuser:appgroup pyproject.toml poetry.lock* ./
+RUN poetry install --no-root
 ENTRYPOINT ["poetry", "run"]
 
-FROM base AS dev
+FROM base AS production
+COPY --chown=appuser:appgroup pyproject.toml poetry.lock* ./
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    graphviz \
-    libgraphviz-dev \
-    pkg-config \
-    build-essential \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN poetry install --no-root --only main
 
-COPY --chown=${USER_NAME}:${GROUP_NAME} pyproject.toml poetry.lock* ./
-RUN poetry install --no-root
+COPY --chown=appuser:appgroup src ./src
 
-COPY --chown=${USER_NAME}:${GROUP_NAME} . .
-
-USER ${USER_NAME}
-
+USER appuser
 ENTRYPOINT ["poetry", "run"]
