@@ -2,41 +2,29 @@ services:
   app:
     build:
       context: .
-      target: app
-    command: streamlit run src/main.py
+      target: production
+    command: ["streamlit", "run", "src/main.py"]
     ports:
       - "8501:8501"
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
-      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
-      - LANGFUSE_HOST=https://cloud.langfuse.com
-      - LANGFUSE_ENABLED=true
-      - MPLCONFIGDIR=/app/.matplotlib
+    volumes:
+      - ./src:/app/src
     env_file:
       - .env
+    environment:
+      - LANGFUSE_HOST=https://cloud.langfuse.com
+      - LANGFUSE_ENABLED=true
+      - MPLCONFIGDIR=/tmp/matplotlib
 
-  dev:
+  test:
     build:
       context: .
-      target: dev
-    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --NotebookApp.token=''
-    ports:
-      - "8888:8888"
-    profiles: [ dev ]
+      target: builder
+    command: ["pytest"]
     volumes:
-      - .:/app
-      - poetry-cache:/app/.venv
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY}
-      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY}
-      - LANGFUSE_HOST=https://cloud.langfuse.com
-      - LANGFUSE_ENABLED=true
-      - JUPYTER_DATA_DIR=/app/.jupyter
-      - MPLCONFIGDIR=/app/.matplotlib
+      - ./src:/app/src
+      - ./tests:/app/tests
     env_file:
       - .env
-
-volumes:
-  poetry-cache:
+    environment:
+      - LANGFUSE_ENABLED=false
+      - PYTHONPATH=/app
