@@ -13,7 +13,6 @@ services:
     environment:
       - LANGFUSE_HOST=https://cloud.langfuse.com
       - LANGFUSE_ENABLED=true
-      - MPLCONFIGDIR=/tmp/matplotlib
 
   test:
     build:
