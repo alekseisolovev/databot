@@ -1,4 +1,28 @@
-__pycache__
+# Byte-compiled / optimized / C extensions
+__pycache__/
+*.pyc
+*.$py.class
+
+# Environment
 .env
+
+# Jupyter
 .ipynb_checkpoints/
 
+# Poetry
+poetry.lock
+
+# Docker
+.dockerignore
+
+# IDE / Editor specific
+.idea/
+.vscode/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# Testing
+.pytest_cache/
