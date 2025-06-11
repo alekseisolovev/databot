@@ -1,5 +1,6 @@
 import io
 import logging
+import os
 from typing import Optional, Tuple, Union
 
 import matplotlib.figure
@@ -7,8 +8,14 @@ import pandas as pd
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langfuse.langchain import CallbackHandler
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
+
+if os.environ.get("LANGFUSE_ENABLED", "true").lower() == "true":
+    langfuse_callback_handler = CallbackHandler()
+else:
+    langfuse_callback_handler = None
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -151,7 +158,12 @@ class Agent:
         self.model = self.model.bind_tools(tools)
 
         def agent_node(state: MessagesState):
-            response = self.model.invoke(state["messages"])
+            config = (
+                {"callbacks": [langfuse_callback_handler]}
+                if langfuse_callback_handler
+                else {}
+            )
+            response = self.model.invoke(state["messages"], config)
 
             if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
                 last_tool_message = state["messages"][-1]
@@ -220,4 +232,3 @@ class Agent:
 
     def invoke(self, messages: list) -> Optional[AIMessage]:
         return self.graph.invoke(messages)
-        
