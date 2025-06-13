@@ -1,11 +1,11 @@
 import io
 import logging
 import os
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.figure
 import pandas as pd
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langfuse.langchain import CallbackHandler
@@ -109,13 +109,25 @@ DataFrame Schema:
 class Agent:
 
     def __init__(self, df: pd.DataFrame):
-
         self.df = df
         self.model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-05-20")
+        self.messages: List[Union[AIMessage, HumanMessage, SystemMessage]] = []
+        self._initialize_state()
         self.graph = self._build_graph()
 
-    def _build_graph(self):
+    def _initialize_state(self):
+        """Initializes the agent's message state."""
+        dataframe_schema = get_dataframe_schema(self.df)
+        system_prompt = get_system_prompt(dataframe_schema)
+        self.messages.append(SystemMessage(content=system_prompt))
+        self.messages.append(
+            AIMessage(
+                content="Hi! I'm DataBot. Feel free to ask me anything about this dataset."
+            )
+        )
+        logger.info("Agent state initialized with system prompt and welcome message.")
 
+    def _build_graph(self):
         @tool(response_format="content_and_artifact")
         def run_dataframe_query(
             query: str,
@@ -123,13 +135,8 @@ class Agent:
             str, Optional[Union[pd.DataFrame, pd.Series, matplotlib.figure.Figure]]
         ]:
             """
-            Executes a Python query or operation on a pandas DataFrame.
-
-            Returns:
-                A tuple containing:
-                - The primary textual output (str): This can be a string representation of a scalar, a list or an error message.
-                - An optional artifact (pd.DataFrame, pd.Series, or matplotlib.figure.Figure)
-                if the query result is a complex object; otherwise, None.
+            Executes a Python query on a pandas DataFrame.
+            Returns a tuple containing a textual description and an optional artifact (DataFrame, Series, or Figure).
             """
             try:
                 result = eval(query, {"df": self.df, "pd": pd}, {})
@@ -138,14 +145,14 @@ class Agent:
                 if isinstance(
                     result, (pd.DataFrame, pd.Series, matplotlib.figure.Figure)
                 ):
-                    content = f"Query '{query}' returned {type(result)}."
+                    content = (
+                        f"Query '{query}' returned an artifact of type {type(result)}."
+                    )
                     artifact = result
                 else:
-                    content = f"Query '{query}' returned {str(result)}."
+                    content = f"Query '{query}' returned: {str(result)}."
                 logger.info(f"Tool 'run_dataframe_query': {content}")
-
                 return content, artifact
-
             except Exception as e:
                 error_message = f"Error executing query '{query}': {str(e)}"
                 logger.error(
@@ -213,7 +220,6 @@ class Agent:
         builder = StateGraph(MessagesState)
         builder.add_node("agent", agent_node)
         builder.add_node("tools", tool_node)
-
         builder.add_edge(START, "agent")
         builder.add_conditional_edges(
             "agent",
@@ -224,11 +230,18 @@ class Agent:
 
         try:
             graph = builder.compile()
-            logger.info("Graph compiled.")
+            logger.info("Graph compiled successfully.")
             return graph
         except Exception as e:
             logger.error(f"Graph compilation failed. Error: {e}", exc_info=True)
             raise
 
-    def invoke(self, messages: list) -> Optional[AIMessage]:
-        return self.graph.invoke(messages)
+    def get_messages(self) -> List[Union[AIMessage, HumanMessage, SystemMessage]]:
+        """Returns the current list of messages."""
+        return self.messages
+
+    def invoke(self, user_query: str):
+        """Runs the agent with the user's query and updates the internal state."""
+        self.messages.append(HumanMessage(content=user_query))
+        response = self.graph.invoke({"messages": self.messages})
+        self.messages = response["messages"]
