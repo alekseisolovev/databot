@@ -12,7 +12,6 @@ services:
       - .env
     environment:
       - LANGFUSE_HOST=https://cloud.langfuse.com
-      - LANGFUSE_ENABLED=true
 
   test:
     build:
@@ -25,5 +24,4 @@ services:
     env_file:
       - .env
     environment:
-      - LANGFUSE_ENABLED=false
       - PYTHONPATH=/app
