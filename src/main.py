@@ -4,9 +4,9 @@ import matplotlib.figure
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 
-from agent import Agent, get_dataframe_schema, get_system_prompt
+from agent import Agent
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.session_state.setdefault("messages", [])
 st.session_state.setdefault("dataframe", None)
 st.session_state.setdefault("agent", None)
 st.session_state.setdefault("current_file_name", None)
@@ -29,17 +28,8 @@ st.session_state.setdefault("current_file_name", None)
 
 def initialize_agent(df: pd.DataFrame, file_name: str):
     logger.info(f"Agent: Attempting initialization for file '{file_name}'.")
-    st.session_state.messages.clear()
     try:
         st.session_state.agent = Agent(df)
-        dataframe_schema = get_dataframe_schema(df)
-        system_prompt = get_system_prompt(dataframe_schema)
-        st.session_state.messages.append(SystemMessage(content=system_prompt))
-        st.session_state.messages.append(
-            AIMessage(
-                content="Hi! I'm DataBot. Feel free to ask me anything about this dataset."
-            )
-        )
         st.session_state.current_file_name = file_name
         logger.info(f"Agent: Initialization successful for file '{file_name}'.")
     except Exception as e:
@@ -79,7 +69,6 @@ with st.sidebar:
                 st.session_state.dataframe = None
                 st.session_state.agent = None
                 st.session_state.current_file_name = None
-                st.session_state.messages.clear()
 
         if (
             st.session_state.dataframe is not None
@@ -102,7 +91,6 @@ with st.sidebar:
             logger.info(
                 f"File Uploader: File '{st.session_state.current_file_name}' removed by user."
             )
-            st.session_state.messages.clear()
             st.session_state.dataframe = None
             st.session_state.agent = None
             previous_file_name = st.session_state.current_file_name
@@ -112,20 +100,21 @@ with st.sidebar:
             )
 
 
-for message in st.session_state.messages:
-    if isinstance(message, SystemMessage):
-        continue
-    with st.chat_message(message.type):
-        st.write(message.content)
-        if isinstance(message, AIMessage):
-            if "dataframe_artifact" in message.additional_kwargs:
-                dataframe_artifact = message.additional_kwargs["dataframe_artifact"]
-                if isinstance(dataframe_artifact, (pd.DataFrame, pd.Series)):
-                    st.dataframe(dataframe_artifact)
-            if "figure_artifact" in message.additional_kwargs:
-                figure_artifact = message.additional_kwargs["figure_artifact"]
-                if isinstance(figure_artifact, matplotlib.figure.Figure):
-                    st.pyplot(figure_artifact)
+if st.session_state.agent:
+    for message in st.session_state.agent.get_messages():
+        if isinstance(message, (SystemMessage, ToolMessage)):
+            continue
+        with st.chat_message(message.type):
+            st.write(message.content)
+            if isinstance(message, AIMessage):
+                if "dataframe_artifact" in message.additional_kwargs:
+                    dataframe_artifact = message.additional_kwargs["dataframe_artifact"]
+                    if isinstance(dataframe_artifact, (pd.DataFrame, pd.Series)):
+                        st.dataframe(dataframe_artifact)
+                if "figure_artifact" in message.additional_kwargs:
+                    figure_artifact = message.additional_kwargs["figure_artifact"]
+                    if isinstance(figure_artifact, matplotlib.figure.Figure):
+                        st.pyplot(figure_artifact)
 
 
 if user_query := st.chat_input("Ask something about your data..."):
@@ -138,21 +127,15 @@ if user_query := st.chat_input("Ask something about your data..."):
             "Please upload a CSV file and ensure the agent is initialized before asking questions."
         )
     else:
-        st.session_state.messages.append(HumanMessage(content=user_query))
         st.chat_message("user").write(user_query)
         with st.container():
             with st.spinner("Thinking..."):
                 try:
-                    response = st.session_state.agent.invoke(
-                        {"messages": st.session_state.messages}
-                    )
-                    ai_message = (
-                        response["messages"][-1]
-                        if response and response["messages"]
-                        else None
-                    )
+                    st.session_state.agent.invoke(user_query)
+
+                    ai_message = st.session_state.agent.get_messages()[-1]
+
                     if isinstance(ai_message, AIMessage):
-                        st.session_state.messages.append(ai_message)
                         with st.chat_message("assistant"):
                             if ai_message.content:
                                 st.write(ai_message.content)
@@ -196,4 +179,3 @@ if user_query := st.chat_input("Ask something about your data..."):
                         exc_info=True,
                     )
                     st.error(f"Processing your query '{user_query}' failed. Error: {e}")
-                    
