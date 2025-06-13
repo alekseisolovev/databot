@@ -22,19 +22,6 @@ Before running the app, create an `.env` file in the project's root directory.
     LANGFUSE_SECRET_KEY="sk-lf-..."
     ```
 
-### Disabling Langfuse
-
-If you do not want to use Langfuse, you must explicitly disable it. In the `docker-compose.yml` file, find the `app` service and change the `LANGFUSE_ENABLED` variable to `false`:
-
-```yaml
-# docker-compose.yml
-services:
-  app:
-    # ...
-    environment:
-      - LANGFUSE_ENABLED=false
-```
-
 ## Running the App
 
 To run the Streamlit app using Docker Compose, follow these steps.
