@@ -1,6 +1,5 @@
 import io
 import logging
-import os
 from typing import List, Optional, Tuple, Union
 
 import matplotlib.figure
@@ -12,15 +11,12 @@ from langfuse.langchain import CallbackHandler
 from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode
 
-if os.environ.get("LANGFUSE_ENABLED", "true").lower() == "true":
-    langfuse_callback_handler = CallbackHandler()
-else:
-    langfuse_callback_handler = None
-
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+langfuse_callback_handler = CallbackHandler()
 
 
 def get_dataframe_schema(df: pd.DataFrame) -> str:
@@ -165,11 +161,7 @@ class Agent:
         self.model = self.model.bind_tools(tools)
 
         def agent_node(state: MessagesState):
-            config = (
-                {"callbacks": [langfuse_callback_handler]}
-                if langfuse_callback_handler
-                else {}
-            )
+            config = {"callbacks": [langfuse_callback_handler]}
             response = self.model.invoke(state["messages"], config)
 
             if state["messages"] and isinstance(state["messages"][-1], ToolMessage):
