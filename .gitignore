@@ -26,3 +26,6 @@ build/
 
 # Testing
 .pytest_cache/
+
+# Data files
+*.csv
