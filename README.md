@@ -1,6 +1,6 @@
 # DataBot
 
-A LangGraph-based AI agent designed to assist with data science workflows and analytical tasks.
+A LangGraph-based AI agent designed to automate data science workflows and analytical tasks, with Langfuse integration for performance evaluation and monitoring.
 
 ## Features
 
