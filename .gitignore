@@ -9,9 +9,6 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Poetry
-poetry.lock
-
 # Docker
 .dockerignore
 
@@ -23,9 +20,13 @@ poetry.lock
 dist/
 build/
 *.egg-info/
+*.bin
 
 # Testing
 .pytest_cache/
 
 # Data files
 *.csv
+*.tsv
+*.xlsx
+*.pkl
