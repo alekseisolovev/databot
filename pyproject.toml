@@ -2,6 +2,7 @@
 name = "databot"
 version = "0.1.0"
 description = "A LangGraph agent for data analysis."
+authors = ["Aleksei Solovev"]
 readme = "README.md"
 packages = [{include = "src"}]
 
