@@ -104,8 +104,21 @@ if st.session_state.agent:
     for message in st.session_state.agent.get_messages():
         if isinstance(message, (SystemMessage, ToolMessage)):
             continue
+
+        if isinstance(message, AIMessage):
+            if message.tool_calls and not message.content.strip():
+                continue
+            if (
+                not message.content.strip()
+                and "dataframe_artifact" not in message.additional_kwargs
+                and "figure_artifact" not in message.additional_kwargs
+            ):
+                continue
+
         with st.chat_message(message.type):
-            st.write(message.content)
+            if message.content.strip():
+                st.write(message.content)
+
             if isinstance(message, AIMessage):
                 if "dataframe_artifact" in message.additional_kwargs:
                     dataframe_artifact = message.additional_kwargs["dataframe_artifact"]
