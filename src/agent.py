@@ -106,7 +106,7 @@ class Agent:
 
     def __init__(self, df: pd.DataFrame):
         self.df = df
-        self.model = ChatGoogleGenerativeAI(model="gemini-2.5-flash-preview-05-20")
+        self.model = ChatGoogleGenerativeAI(model="gemini-2.5-flash")
         self.messages: List[Union[AIMessage, HumanMessage, SystemMessage]] = []
         self._initialize_state()
         self.graph = self._build_graph()
