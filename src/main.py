@@ -106,13 +106,19 @@ if st.session_state.agent:
             continue
 
         if isinstance(message, AIMessage):
-            if message.tool_calls and not message.content.strip():
+            is_tool_call = bool(message.tool_calls)
+            has_content = bool(message.content.strip())
+            has_artifacts = (
+                "dataframe_artifact" in message.additional_kwargs
+                or "figure_artifact" in message.additional_kwargs
+            )
+
+            if is_tool_call and not has_content and not has_artifacts:
                 continue
-            if (
-                not message.content.strip()
-                and "dataframe_artifact" not in message.additional_kwargs
-                and "figure_artifact" not in message.additional_kwargs
-            ):
+
+            if not is_tool_call and not has_content and not has_artifacts:
+                with st.chat_message(message.type):
+                    st.warning("Agent provided no response or artifact for this turn.")
                 continue
 
         with st.chat_message(message.type):
@@ -141,54 +147,36 @@ if user_query := st.chat_input("Ask something about your data..."):
         )
     else:
         st.chat_message("user").write(user_query)
-        with st.container():
-            with st.spinner("Thinking..."):
-                try:
-                    st.session_state.agent.invoke(user_query)
 
-                    ai_message = st.session_state.agent.get_messages()[-1]
+        with st.spinner("Thinking..."):
+            try:
+                st.session_state.agent.invoke(user_query)
 
-                    if isinstance(ai_message, AIMessage):
-                        with st.chat_message("assistant"):
-                            if ai_message.content:
-                                st.write(ai_message.content)
-                                logger.info(
-                                    f"Chat Response: Agent content received: '{str(ai_message.content)}'"
-                                )
-                            if "dataframe_artifact" in ai_message.additional_kwargs:
-                                dataframe_artifact = ai_message.additional_kwargs[
-                                    "dataframe_artifact"
-                                ]
-                                st.dataframe(dataframe_artifact)
-                                logger.info(
-                                    f"Chat Response: Agent artifact received. Type: {type(dataframe_artifact)}, Shape: {getattr(dataframe_artifact, 'shape', 'N/A')}"
-                                )
-                            if "figure_artifact" in ai_message.additional_kwargs:
-                                figure_artifact = ai_message.additional_kwargs[
-                                    "figure_artifact"
-                                ]
-                                st.pyplot(figure_artifact)
-                                logger.info(
-                                    f"Chat Response: Agent artifact received. Type: {type(figure_artifact)}"
-                                )
-                            elif not ai_message.content:
-                                logger.info(
-                                    "Chat Response: AIMessage has no response or artifact for this turn."
-                                )
-                                st.warning(
-                                    "Agent provided no response or artifact for this turn."
-                                )
-                    else:
-                        logger.warning(
-                            f"Chat Response: Agent did not return a valid AIMessage. Last message in response: {type(ai_message)}"
+                ai_message = st.session_state.agent.get_messages()[-1]
+                if isinstance(ai_message, AIMessage):
+                    if ai_message.content:
+                        logger.info(
+                            f"Chat Response: Agent content received: '{str(ai_message.content)}'"
                         )
-                        st.warning(
-                            "Agent response issue: The agent's response was not in the expected format."
+                    if "dataframe_artifact" in ai_message.additional_kwargs:
+                        dataframe_artifact = ai_message.additional_kwargs[
+                            "dataframe_artifact"
+                        ]
+                        logger.info(
+                            f"Chat Response: Agent artifact received. Type: {type(dataframe_artifact)}, Shape: {getattr(dataframe_artifact, 'shape', 'N/A')}"
                         )
+                    if "figure_artifact" in ai_message.additional_kwargs:
+                        figure_artifact = ai_message.additional_kwargs[
+                            "figure_artifact"
+                        ]
+                        logger.info(
+                            f"Chat Response: Agent artifact received. Type: {type(figure_artifact)}"
+                        )
+                st.rerun()
 
-                except Exception as e:
-                    logger.error(
-                        f"Chat Response: Processing user query '{user_query}' failed. Error: {e}",
-                        exc_info=True,
-                    )
-                    st.error(f"Processing your query '{user_query}' failed. Error: {e}")
+            except Exception as e:
+                logger.error(
+                    f"Chat Response: Processing user query '{user_query}' failed. Error: {e}",
+                    exc_info=True,
+                )
+                st.error(f"Processing your query '{user_query}' failed. Error: {e}")
