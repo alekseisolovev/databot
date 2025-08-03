@@ -26,6 +26,12 @@ st.session_state.setdefault("agent", None)
 st.session_state.setdefault("current_file_name", None)
 
 
+def reset_session_state():
+    st.session_state.dataframe = None
+    st.session_state.agent = None
+    st.session_state.current_file_name = None
+
+
 def initialize_agent(df: pd.DataFrame, file_name: str):
     logger.info(f"Agent: Attempting initialization for file '{file_name}'.")
     try:
@@ -38,9 +44,7 @@ def initialize_agent(df: pd.DataFrame, file_name: str):
             exc_info=True,
         )
         st.error(f"Agent initialization failed. Error: {e}")
-        st.session_state.agent = None
-        st.session_state.dataframe = None
-        st.session_state.current_file_name = None
+        reset_session_state()
 
 
 with st.sidebar:
@@ -66,9 +70,7 @@ with st.sidebar:
                     exc_info=True,
                 )
                 st.error(f"Reading or processing CSV failed. Error: {e}")
-                st.session_state.dataframe = None
-                st.session_state.agent = None
-                st.session_state.current_file_name = None
+                reset_session_state()
 
         if (
             st.session_state.dataframe is not None
@@ -88,16 +90,10 @@ with st.sidebar:
                 )
     else:
         if st.session_state.current_file_name is not None:
-            logger.info(
-                f"File Uploader: File '{st.session_state.current_file_name}' removed by user."
-            )
-            st.session_state.dataframe = None
-            st.session_state.agent = None
             previous_file_name = st.session_state.current_file_name
-            st.session_state.current_file_name = None
-            st.info(
-                f"File '{previous_file_name}' removed. Agent and chat history cleared."
-            )
+            logger.info(f"File Uploader: File '{previous_file_name}' removed by user.")
+            reset_session_state()
+            st.info(f"File '{previous_file_name}' removed. Agent and data cleared.")
 
 
 if st.session_state.agent:
