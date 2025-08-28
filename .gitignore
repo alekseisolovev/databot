@@ -9,9 +9,6 @@ __pycache__/
 # Jupyter
 .ipynb_checkpoints/
 
-# Docker
-.dockerignore
-
 # IDE / Editor specific
 .idea/
 .vscode/
